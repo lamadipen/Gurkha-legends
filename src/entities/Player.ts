@@ -65,6 +65,7 @@ export class Player {
   get stamina() { return this.sta.value }
   get isDead() { return this._dead }
   get detectionRadius() { return this.crouching ? PLAYER_STEALTH_RADIUS : PLAYER_NORMAL_RADIUS }
+  get facingAngle(): number { return Math.atan2(this.facing.y, this.facing.x) }
 
   update(_time: number, delta: number, input: InputState) {
     if (this._dead) return

@@ -65,6 +65,8 @@ export class GameScene extends Phaser.Scene {
   private loreText!: Phaser.GameObjects.Text
   private weaponText!: Phaser.GameObjects.Text
   private pauseOverlay!: Phaser.GameObjects.Container
+  private rangedWeaponGfx!: Phaser.GameObjects.Graphics
+  private rangedWeaponTimer = 0
   private paused = false
   private missionComplete = false
 
@@ -76,6 +78,7 @@ export class GameScene extends Phaser.Scene {
     this.difficulty = data.difficulty ?? 'rifleman'
     this.paused = false
     this.missionComplete = false
+    this.rangedWeaponTimer = 0
     this.enemies = []
     this.loreItems = []
     this.projectiles = []
@@ -118,6 +121,7 @@ export class GameScene extends Phaser.Scene {
       this.registerBossEvents()
     }
 
+    this.rangedWeaponGfx = this.add.graphics().setDepth(6)
     this.createHUD()
     this.createPauseOverlay()
 
@@ -150,6 +154,8 @@ export class GameScene extends Phaser.Scene {
     this.weaponSystem.update(delta)
     this.handleRangedFire(input)
     this.updateProjectiles(delta)
+    this.rangedWeaponTimer = Math.max(0, this.rangedWeaponTimer - delta)
+    this.updateRangedWeaponVisual()
 
     this.updateHUD()
 
@@ -162,23 +168,102 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleRangedFire(input: InputState) {
-    const ptr = this.input.activePointer
-    const px = this.player.sprite.x
-    const py = this.player.sprite.y
-    const dx = ptr.worldX - px
-    const dy = ptr.worldY - py
-    const len = Math.sqrt(dx * dx + dy * dy)
-    const aimX = len > 1 ? dx / len : 0
-    const aimY = len > 1 ? dy / len : 1
+    const px    = this.player.sprite.x
+    const py    = this.player.sprite.y
+    const angle = this.player.facingAngle
+    const aimX  = Math.cos(angle)
+    const aimY  = Math.sin(angle)
 
     const result = this.weaponSystem.tryFire(input, px, py, aimX, aimY)
     if (!result) return
 
     this.projectiles.push(new Projectile(this, result))
+    this.rangedWeaponTimer = 900
+    this.showMuzzleFlash(px, py, angle, result.type)
 
     if (result.isGunshot) {
       this.emitGunshotAlert(px, py, SOUND_GUNSHOT_RADIUS)
     }
+  }
+
+  private updateRangedWeaponVisual() {
+    this.rangedWeaponGfx.clear()
+    if (this.player.isDead) return
+
+    const px    = this.player.sprite.x
+    const py    = this.player.sprite.y
+    const angle = this.player.facingAngle
+
+    const isRifle  = this.era === 3
+    const stockLen = 10
+    const barrelLen = isRifle ? 20 : 28  // musket longer, rifle shorter
+
+    const handDist = 6
+    const sx = px + Math.cos(angle) * handDist
+    const sy = py + Math.sin(angle) * handDist
+    const mx = sx + Math.cos(angle) * stockLen
+    const my = sy + Math.sin(angle) * stockLen
+    const bx = mx + Math.cos(angle) * barrelLen
+    const by = my + Math.sin(angle) * barrelLen
+
+    if (this.rangedWeaponTimer <= 0) return
+    this.rangedWeaponGfx.setAlpha(Math.min(1, this.rangedWeaponTimer / 150))
+
+    // Stock — dark wood
+    this.rangedWeaponGfx.lineStyle(4, 0x5a3010, 1)
+    this.rangedWeaponGfx.beginPath()
+    this.rangedWeaponGfx.moveTo(sx, sy)
+    this.rangedWeaponGfx.lineTo(mx, my)
+    this.rangedWeaponGfx.strokePath()
+
+    // Lock / action block
+    this.rangedWeaponGfx.fillStyle(0x3a2008, 1)
+    this.rangedWeaponGfx.fillCircle(mx, my, 2.5)
+
+    // Barrel — grey metal, thin
+    this.rangedWeaponGfx.lineStyle(isRifle ? 2 : 2, 0x556066, 1)
+    this.rangedWeaponGfx.beginPath()
+    this.rangedWeaponGfx.moveTo(mx, my)
+    this.rangedWeaponGfx.lineTo(bx, by)
+    this.rangedWeaponGfx.strokePath()
+
+    // Muzzle cap
+    this.rangedWeaponGfx.fillStyle(0x444455, 1)
+    this.rangedWeaponGfx.fillCircle(bx, by, 1.5)
+  }
+
+  private showMuzzleFlash(px: number, py: number, angle: number, type: string) {
+    const isRifle  = this.era === 3
+    const totalLen = 6 + 10 + (isRifle ? 20 : 28)
+    const bx = px + Math.cos(angle) * totalLen
+    const by = py + Math.sin(angle) * totalLen
+
+    const flash = this.add.graphics().setDepth(9)
+    if (type === 'knife') {
+      // No muzzle flash for knife throw
+      flash.destroy(); return
+    }
+    // Outer glow
+    flash.fillStyle(0xff8800, 0.55); flash.fillCircle(bx, by, 8)
+    // Mid
+    flash.fillStyle(0xffffcc, 0.85); flash.fillCircle(bx, by, 5)
+    // Core
+    flash.fillStyle(0xffffff, 1.0);  flash.fillCircle(bx, by, 2)
+    // Elongated burst in fire direction
+    flash.lineStyle(3, 0xffdd88, 0.70)
+    flash.beginPath()
+    flash.moveTo(bx, by)
+    flash.lineTo(bx + Math.cos(angle) * 10, by + Math.sin(angle) * 10)
+    flash.strokePath()
+
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scaleX: 1.6, scaleY: 1.6,
+      duration: 130,
+      ease: 'Quad.easeOut',
+      onComplete: () => flash.destroy(),
+    })
   }
 
   private updateProjectiles(delta: number) {
