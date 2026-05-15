@@ -1,9 +1,12 @@
 import Phaser from 'phaser'
 import { InputManager } from '../engine/InputManager'
+import type { InputState } from '../engine/InputManager'
 import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
 import { LoreItem } from '../entities/LoreItem'
+import { Projectile } from '../entities/Projectile'
 import { ScoreSystem } from '../engine/ScoreSystem'
+import { WeaponSystem } from '../engine/WeaponSystem'
 import { MapBuilder } from '../maps/MapBuilder'
 import { ERA1_MAPS } from '../maps/era1Maps'
 import type { MapDef } from '../maps/MapBuilder'
@@ -12,7 +15,7 @@ import type { Difficulty, EraNumber, MissionNumber } from '../types'
 import {
   PLAYER_MAX_HP, PLAYER_MAX_STAMINA,
   SOUND_MELEE_RADIUS, SOUND_STEALTH_KILL_RADIUS,
-  KHUKURI_STEALTH_RANGE, SCORE_BONUS_ALL_LORE,
+  KHUKURI_STEALTH_RANGE, SCORE_BONUS_ALL_LORE, SOUND_GUNSHOT_RADIUS,
 } from '../config/balance'
 
 interface AttackEvent {
@@ -33,8 +36,10 @@ export class GameScene extends Phaser.Scene {
   private inputMgr!: InputManager
   private player!: Player
   private scoreSystem!: ScoreSystem
+  private weaponSystem!: WeaponSystem
   private enemies: Enemy[] = []
   private loreItems: LoreItem[] = []
+  private projectiles: Projectile[] = []
   private loreGroup!: Phaser.Physics.Arcade.Group
   private wallGroup!: Phaser.Physics.Arcade.StaticGroup
   private totalLore = 0
@@ -45,10 +50,12 @@ export class GameScene extends Phaser.Scene {
 
   private hpBar!: Phaser.GameObjects.Graphics
   private staminaBar!: Phaser.GameObjects.Graphics
+  private reloadBar!: Phaser.GameObjects.Graphics
   private scoreText!: Phaser.GameObjects.Text
   private killText!: Phaser.GameObjects.Text
   private enemyCountText!: Phaser.GameObjects.Text
   private loreText!: Phaser.GameObjects.Text
+  private weaponText!: Phaser.GameObjects.Text
   private pauseOverlay!: Phaser.GameObjects.Container
   private paused = false
   private missionComplete = false
@@ -63,6 +70,7 @@ export class GameScene extends Phaser.Scene {
     this.missionComplete = false
     this.enemies = []
     this.loreItems = []
+    this.projectiles = []
   }
 
   create() {
@@ -73,6 +81,7 @@ export class GameScene extends Phaser.Scene {
 
     // Systems
     this.scoreSystem = new ScoreSystem(this.difficulty)
+    this.weaponSystem = new WeaponSystem(this.era)
     this.inputMgr = new InputManager(this)
     this.player = new Player(this, playerStart.x, playerStart.y, this.scoreSystem)
 
@@ -111,6 +120,11 @@ export class GameScene extends Phaser.Scene {
       enemy.update(delta, this.player.sprite.x, this.player.sprite.y, this.player.detectionRadius)
     }
 
+    // Ranged weapons
+    this.weaponSystem.update(delta)
+    this.handleRangedFire(input)
+    this.updateProjectiles(delta)
+
     this.updateHUD()
 
     if (this.player.isDead) {
@@ -119,6 +133,46 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!this.missionComplete) this.checkMissionComplete()
+  }
+
+  private handleRangedFire(input: InputState) {
+    const ptr = this.input.activePointer
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const dx = ptr.worldX - px
+    const dy = ptr.worldY - py
+    const len = Math.sqrt(dx * dx + dy * dy)
+    const aimX = len > 1 ? dx / len : 0
+    const aimY = len > 1 ? dy / len : 1
+
+    const result = this.weaponSystem.tryFire(input, px, py, aimX, aimY)
+    if (!result) return
+
+    this.projectiles.push(new Projectile(this, result))
+
+    if (result.isGunshot) {
+      this.emitGunshotAlert(px, py, SOUND_GUNSHOT_RADIUS)
+    }
+  }
+
+  private updateProjectiles(delta: number) {
+    for (const proj of this.projectiles) {
+      if (!proj.alive) continue
+      proj.update(delta)
+      if (!proj.alive) continue
+
+      for (const enemy of this.enemies) {
+        if (enemy.isDead) continue
+        const dist = Math.sqrt((proj.x - enemy.x) ** 2 + (proj.y - enemy.y) ** 2)
+        if (dist < 20) {
+          const died = enemy.takeDamage(proj.damage)
+          if (died) this.scoreSystem.registerKill(false, false)
+          proj.destroy()
+          break
+        }
+      }
+    }
+    this.projectiles = this.projectiles.filter(p => p.alive)
   }
 
   private handlePlayerAttack(evt: AttackEvent) {
@@ -265,6 +319,23 @@ export class GameScene extends Phaser.Scene {
       fontSize: '12px', color: '#f0c040',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(10)
 
+    // Weapon HUD — bottom center
+    const wx = this.scale.width / 2
+    const wY = this.scale.height - 54
+    const weapBg = this.add.graphics().setScrollFactor(0).setDepth(10)
+    weapBg.fillStyle(0x000000, 0.5)
+    weapBg.fillRoundedRect(wx - 90, wY - 4, 180, 46, 6)
+
+    this.weaponText = this.add.text(wx, wY + 2, '', {
+      fontSize: '11px', color: '#ffffff', align: 'center',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(11)
+
+    // Reload bar background
+    const relBg = this.add.graphics().setScrollFactor(0).setDepth(10)
+    relBg.fillStyle(0x333300)
+    relBg.fillRect(wx - 70, wY + 30, 140, 6)
+    this.reloadBar = this.add.graphics().setScrollFactor(0).setDepth(11)
+
     this.add.text(20, 20, `Era ${this.era} · Mission ${this.mission}`, {
       fontSize: '13px', color: '#887755',
     }).setScrollFactor(0).setDepth(10)
@@ -288,6 +359,20 @@ export class GameScene extends Phaser.Scene {
     this.enemyCountText.setText(alive > 0 ? `ENEMIES: ${alive}` : '— ALL CLEAR —')
 
     this.loreText.setText(`LORE: ${this.scoreSystem.loreCount}/${this.totalLore}`)
+
+    // Weapon HUD
+    const wx = this.scale.width / 2
+    const wY = this.scale.height - 54
+    const hud = this.weaponSystem.hudInfo
+    if (hud.heavyName) {
+      this.weaponText.setText(`[X] ${hud.quickName} ${hud.quickAmmo}  [C] ${hud.heavyName} ${hud.heavyAmmo}`)
+    } else {
+      this.weaponText.setText(`[X] ${hud.quickName}  ${hud.quickAmmo}`)
+    }
+
+    this.reloadBar.clear()
+    this.reloadBar.fillStyle(0xffdd00)
+    this.reloadBar.fillRect(wx - 70, wY + 30, 140 * hud.heavyReloadPct, 6)
   }
 
   private createPauseOverlay() {
