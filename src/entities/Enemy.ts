@@ -31,7 +31,7 @@ const CONFIGS: Record<EnemyType, EnemyConfig> = {
 }
 
 export class Enemy {
-  readonly sprite: Phaser.GameObjects.Rectangle
+  readonly sprite: Phaser.GameObjects.Sprite
   private physBody: Phaser.Physics.Arcade.Body
   private scene: Phaser.Scene
   private indicator: Phaser.GameObjects.Text
@@ -51,6 +51,9 @@ export class Enemy {
   private attackCooldown = 0
   private investigatePos: { x: number; y: number } | null = null
 
+  // Animation tracking
+  private currentAnimKey = ''
+
   constructor(
     scene: Phaser.Scene,
     x: number, y: number,
@@ -65,10 +68,14 @@ export class Enemy {
     this.patrolTarget = patrolEnd ?? { x: x + 100, y }
 
     const [w, h] = this.cfg.size
-    this.sprite = scene.add.rectangle(x, y, w, h, this.cfg.color).setDepth(4)
+    this.sprite = scene.add.sprite(x, y, `enemy_${type}`, 0).setDepth(4)
     scene.physics.add.existing(this.sprite)
     this.physBody = this.sprite.body as Phaser.Physics.Arcade.Body
     this.physBody.setCollideWorldBounds(true)
+    this.physBody.setSize(w, h)
+
+    this.sprite.play(`${type}_idle_down`)
+    this.currentAnimKey = `${type}_idle_down`
 
     this.indicator = scene.add.text(x, y - 22, '', {
       fontSize: '10px', color: '#ffffff', backgroundColor: '#000000',
@@ -142,6 +149,31 @@ export class Enemy {
 
     this.indicator.setPosition(this.sprite.x, this.sprite.y - 22)
     this.indicator.setText(this._state === 'alert' ? '!' : this._state === 'combat' ? '!!' : '')
+    this.updateAnim()
+  }
+
+  private updateAnim() {
+    if (this._state === 'dead') return
+
+    const { x: vx, y: vy } = this.physBody.velocity
+    const moving = Math.abs(vx) > 5 || Math.abs(vy) > 5
+
+    // Determine horizontal facing for flipX
+    if (Math.abs(vx) > 5) this.sprite.setFlipX(vx > 0)
+
+    // Pick anim key based on facing direction
+    let dir: 'down' | 'left'
+    if (Math.abs(vx) > Math.abs(vy)) {
+      dir = 'left'   // side-facing (right = flipX)
+    } else {
+      dir = 'down'   // up/down both use down frames for enemies
+    }
+
+    const key = moving ? `${this.type}_walk_${dir}` : `${this.type}_idle_${dir}`
+    if (key !== this.currentAnimKey) {
+      this.sprite.play(key)
+      this.currentAnimKey = key
+    }
   }
 
   // Returns true if the enemy died
@@ -150,9 +182,9 @@ export class Enemy {
     this._hp = instantKill ? 0 : Math.max(0, this._hp - amount)
     if (this._hp <= 0) { this.die(); return true }
 
-    this.sprite.setFillStyle(0xffffff)
+    this.sprite.setTint(0xffffff)
     this.scene.time.delayedCall(80, () => {
-      if (!this.isDead) this.sprite.setFillStyle(this.cfg.color)
+      if (!this.isDead) this.sprite.clearTint()
     })
     if (this._state !== 'combat') this.enterCombat()
     return false
@@ -231,7 +263,7 @@ export class Enemy {
     this._state = 'dead'
     this.physBody.setVelocity(0, 0)
     this.physBody.setEnable(false)
-    this.sprite.setFillStyle(0x333333).setAlpha(0.5)
+    this.sprite.setTint(0x333333).setAlpha(0.4)
     this.indicator.destroy()
     this.scene.cameras.main.flash(60, 150, 0, 0, false)
   }

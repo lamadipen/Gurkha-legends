@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { generateCharacterTextures } from '../entities/CharacterTextureFactory'
 
 export class PreloadScene extends Phaser.Scene {
   constructor() { super('PreloadScene') }
@@ -40,6 +41,7 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create() {
+    generateCharacterTextures(this)
     this.scene.start('MainMenuScene')
   }
 }

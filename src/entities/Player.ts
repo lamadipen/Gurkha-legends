@@ -12,8 +12,10 @@ import {
   KHUKURI_STEALTH_RANGE, KHUKURI_HEAVY_RADIUS,
 } from '../config/balance'
 
+type AnimDir = 'down' | 'up' | 'left'  // right = flipX of left
+
 export class Player {
-  readonly sprite: Phaser.GameObjects.Rectangle
+  readonly sprite: Phaser.GameObjects.Sprite
   private physBody: Phaser.Physics.Arcade.Body
   private sta: StaminaSystem
   private scene: Phaser.Scene
@@ -33,6 +35,11 @@ export class Player {
   private heavyHeldMs = 0
   private counterTimer = 0
 
+  // Animation
+  private animDir: AnimDir = 'down'
+  private facingRight = false
+  private attacking = false
+
   private facing = { x: 0, y: 1 }
 
   constructor(scene: Phaser.Scene, x: number, y: number, scoreSystem: ScoreSystem) {
@@ -40,11 +47,18 @@ export class Player {
     this.scene = scene
     this.sta = new StaminaSystem()
 
-    this.sprite = scene.add.rectangle(x, y, 24, 24, 0x44aa44).setDepth(5)
+    this.sprite = scene.add.sprite(x, y, 'player', 0).setDepth(5)
     scene.physics.add.existing(this.sprite)
     this.physBody = this.sprite.body as Phaser.Physics.Arcade.Body
     this.physBody.setCollideWorldBounds(true)
     this.physBody.setMaxVelocity(PLAYER_SPRINT_SPEED, PLAYER_SPRINT_SPEED)
+    this.physBody.setSize(18, 18)
+
+    this.sprite.on('animationcomplete', (anim: Phaser.Animations.Animation) => {
+      if (anim.key === 'player_attack') this.attacking = false
+    })
+
+    this.sprite.play('player_idle_down')
   }
 
   get hp() { return this._hp }
@@ -69,7 +83,7 @@ export class Player {
       this.dodgeTimer -= delta
       if (this.dodgeTimer <= 0) {
         this.dodging = false
-        this.sprite.setFillStyle(0x44aa44)
+        this.sprite.setAlpha(1)
       }
     } else {
       let vx = 0, vy = 0
@@ -82,6 +96,7 @@ export class Player {
         const len = Math.sqrt(vx * vx + vy * vy)
         vx /= len; vy /= len
         this.facing = { x: vx, y: vy }
+        this.updateFacingDir(vx, vy)
       }
 
       const speed = sprinting ? PLAYER_SPRINT_SPEED : PLAYER_SPEED
@@ -95,7 +110,7 @@ export class Player {
           this.dodgeTimer = PLAYER_DODGE_DURATION
           this.dodgeCooldown = PLAYER_DODGE_COOLDOWN
           this.physBody.setVelocity(this.facing.x * 500, this.facing.y * 500)
-          this.sprite.setFillStyle(0x88ffff)
+          this.sprite.setAlpha(0.45)
         }
       }
     }
@@ -113,8 +128,35 @@ export class Player {
     if (input.lightAttack) this.doLightAttack()
 
     this.sta.update(delta, sprinting || this.dodging)
+    this.updateAnimation(moving)
 
     if (this._hp <= 0) this._dead = true
+  }
+
+  private updateFacingDir(vx: number, vy: number) {
+    if (Math.abs(vx) > Math.abs(vy)) {
+      this.facingRight = vx > 0
+      this.animDir = 'left'
+    } else {
+      this.animDir = vy > 0 ? 'down' : 'up'
+      this.facingRight = false
+    }
+  }
+
+  private updateAnimation(moving: boolean) {
+    if (this.attacking) return
+
+    this.sprite.setFlipX(this.facingRight)
+
+    if (this.dodging) {
+      this.sprite.play('player_dodge', true)
+    } else if (this.crouching) {
+      this.sprite.play('player_crouch', true)
+    } else if (moving) {
+      this.sprite.play(`player_walk_${this.animDir}`, true)
+    } else {
+      this.sprite.play(`player_idle_${this.animDir}`, true)
+    }
   }
 
   takeDamage(amount: number) {
@@ -122,6 +164,9 @@ export class Player {
     this._hp = Math.max(0, this._hp - amount)
     this.counterTimer = KHUKURI_COUNTER_WINDOW
     this.scene.cameras.main.shake(150, 0.01)
+    // Red tint flash on hit
+    this.sprite.setTint(0xff4444)
+    this.scene.time.delayedCall(120, () => this.sprite.clearTint())
   }
 
   private doLightAttack() {
@@ -138,12 +183,20 @@ export class Player {
     this.emitAttack(dmg, 50, isFinish, false)
     if (isFinish) this.comboCount = 0
     this.scene.cameras.main.flash(80, 200, 150, 0, false)
+    this.triggerAttackAnim()
   }
 
   private doHeavyAttack() {
     if (!this.sta.drain(KHUKURI_HEAVY_STAMINA)) return
     this.emitAttack(KHUKURI_HEAVY_DAMAGE, KHUKURI_HEAVY_RADIUS, false, false, true)
     this.scene.cameras.main.flash(120, 255, 100, 0, false)
+    this.triggerAttackAnim()
+  }
+
+  private triggerAttackAnim() {
+    this.attacking = true
+    this.sprite.setFlipX(this.facingRight)
+    this.sprite.play('player_attack')
   }
 
   private emitAttack(damage: number, range: number, comboFinish: boolean,
