@@ -7,6 +7,8 @@ import { LoreItem } from '../entities/LoreItem'
 import { Projectile } from '../entities/Projectile'
 import { ScoreSystem } from '../engine/ScoreSystem'
 import { WeaponSystem } from '../engine/WeaponSystem'
+import { WeaponMasterySystem } from '../engine/WeaponMasterySystem'
+import { loadMastery, saveMastery } from '../storage/api'
 import { MapBuilder } from '../maps/MapBuilder'
 import { ERA1_MAPS } from '../maps/era1Maps'
 import type { MapDef } from '../maps/MapBuilder'
@@ -37,6 +39,7 @@ export class GameScene extends Phaser.Scene {
   private player!: Player
   private scoreSystem!: ScoreSystem
   private weaponSystem!: WeaponSystem
+  private masterySystem!: WeaponMasterySystem
   private enemies: Enemy[] = []
   private loreItems: LoreItem[] = []
   private projectiles: Projectile[] = []
@@ -81,7 +84,8 @@ export class GameScene extends Phaser.Scene {
 
     // Systems
     this.scoreSystem = new ScoreSystem(this.difficulty)
-    this.weaponSystem = new WeaponSystem(this.era)
+    this.masterySystem = new WeaponMasterySystem(loadMastery() ?? undefined)
+    this.weaponSystem = new WeaponSystem(this.era, this.masterySystem)
     this.inputMgr = new InputManager(this)
     this.player = new Player(this, playerStart.x, playerStart.y, this.scoreSystem)
 
@@ -165,8 +169,13 @@ export class GameScene extends Phaser.Scene {
         if (enemy.isDead) continue
         const dist = Math.sqrt((proj.x - enemy.x) ** 2 + (proj.y - enemy.y) ** 2)
         if (dist < 20) {
-          const died = enemy.takeDamage(proj.damage)
+          const weapon = proj.type === 'knife' ? 'knife'
+            : proj.type === 'rifle' ? 'rifle' : 'musket'
+          const scaledDmg = Math.round(proj.damage * this.masterySystem.getDamageMultiplier(weapon))
+          const died = enemy.takeDamage(scaledDmg)
           if (died) this.scoreSystem.registerKill(false, false)
+          const leveledUp = this.masterySystem.registerHit(weapon)
+          if (leveledUp) this.showMasteryLevelUp(weapon, this.masterySystem.getLevel(weapon))
           proj.destroy()
           break
         }
@@ -178,6 +187,7 @@ export class GameScene extends Phaser.Scene {
   private handlePlayerAttack(evt: AttackEvent) {
     const { x, y, damage, range, comboFinish, isStealth } = evt
     const soundRadius = isStealth ? SOUND_STEALTH_KILL_RADIUS : SOUND_MELEE_RADIUS
+    const khukuriMult = this.masterySystem.getDamageMultiplier('khukuri')
 
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
@@ -188,8 +198,12 @@ export class GameScene extends Phaser.Scene {
 
       if (dist <= range) {
         const isStealthKill = isStealth && enemy.state !== 'combat' && dist <= KHUKURI_STEALTH_RANGE
-        const died = enemy.takeDamage(damage, isStealthKill)
+        const scaledDmg = Math.round(damage * khukuriMult)
+        const died = enemy.takeDamage(scaledDmg, isStealthKill)
         if (died) this.scoreSystem.registerKill(isStealthKill || isStealth, comboFinish)
+        // Register khukuri hit (stealth kills count as 1 hit)
+        const leveledUp = this.masterySystem.registerHit('khukuri')
+        if (leveledUp) this.showMasteryLevelUp('khukuri', this.masterySystem.getLevel('khukuri'))
       }
 
       if (soundRadius > 0) {
@@ -264,6 +278,33 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  private showMasteryLevelUp(weapon: string, level: number) {
+    const label = weapon.charAt(0).toUpperCase() + weapon.slice(1)
+    const cx = this.scale.width / 2
+    const notif = this.add.text(cx, this.scale.height - 100,
+      `${label} Mastery  Lv.${level}!`, {
+        fontSize: '13px', color: '#ffdd00', fontStyle: 'bold',
+        backgroundColor: '#00000099', padding: { x: 12, y: 6 },
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(20).setAlpha(0)
+
+    this.tweens.add({
+      targets: notif,
+      alpha: 1, y: this.scale.height - 115,
+      duration: 250,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(2000, () => {
+          this.tweens.add({
+            targets: notif,
+            alpha: 0, y: this.scale.height - 130,
+            duration: 350,
+            onComplete: () => notif.destroy(),
+          })
+        })
+      },
+    })
+  }
+
   private checkMissionComplete() {
     if (this.enemies.length > 0 && this.enemies.every(e => e.isDead)) {
       this.missionComplete = true
@@ -272,9 +313,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   completeMission() {
-    const allLore = this.scoreSystem.loreCount >= this.totalLore && this.totalLore > 0
-    if (allLore) this.scoreSystem.registerLore() // +1500 all-lore bonus via balance constant
+    // Persist mastery to localStorage before transitioning
+    saveMastery(this.masterySystem.serialize())
 
+    const allLore = this.scoreSystem.loreCount >= this.totalLore && this.totalLore > 0
     this.scene.start('MissionCompleteScene', {
       era: this.era, mission: this.mission, difficulty: this.difficulty,
       result: {
@@ -283,7 +325,8 @@ export class GameScene extends Phaser.Scene {
         stealthKills: this.scoreSystem.stealthKills,
         noHits: this.player.hp === PLAYER_MAX_HP,
         allLore,
-        underPar: false, timeTaken: 0, masteryGained: {},
+        underPar: false, timeTaken: 0,
+        masteryGained: this.masterySystem.getMasteryGained(),
       },
     })
   }
@@ -364,10 +407,15 @@ export class GameScene extends Phaser.Scene {
     const wx = this.scale.width / 2
     const wY = this.scale.height - 54
     const hud = this.weaponSystem.hudInfo
+    const dots = (level: number) => '■'.repeat(level) + '□'.repeat(5 - level)
+
     if (hud.heavyName) {
-      this.weaponText.setText(`[X] ${hud.quickName} ${hud.quickAmmo}  [C] ${hud.heavyName} ${hud.heavyAmmo}`)
+      this.weaponText.setText(
+        `[X] ${hud.quickName} ${hud.quickAmmo} ${dots(hud.quickLevel)}` +
+        `   [C] ${hud.heavyName} ${hud.heavyAmmo} ${dots(hud.heavyLevel)}`
+      )
     } else {
-      this.weaponText.setText(`[X] ${hud.quickName}  ${hud.quickAmmo}`)
+      this.weaponText.setText(`[X] ${hud.quickName}  ${hud.quickAmmo}  ${dots(hud.quickLevel)}`)
     }
 
     this.reloadBar.clear()
