@@ -340,12 +340,11 @@ export const ERA1_M4: MapDef = {
   objectivePos: { x: 1780, y: 500 },
 
   spawns: [
-    { x: 280,  y: 300,  type: 'soldier',   patrolEnd: { x: 280,  y: 700 } },
-    { x: 680,  y: 160,  type: 'archer',    patrolEnd: { x: 830,  y: 160 } },
-    { x: 680,  y: 900,  type: 'soldier',   patrolEnd: { x: 830,  y: 900 } },
-    { x: 1140, y: 540,  type: 'heavy',     patrolEnd: { x: 1300, y: 540 } },
-    { x: 1440, y: 300,  type: 'rifleman',  patrolEnd: { x: 1440, y: 760 } },
-    { x: 1620, y: 540,  type: 'commander', patrolEnd: { x: 1620, y: 540 } },
+    { x: 280,  y: 300,  type: 'soldier',  patrolEnd: { x: 280,  y: 700 } },
+    { x: 680,  y: 160,  type: 'archer',   patrolEnd: { x: 830,  y: 160 } },
+    { x: 680,  y: 900,  type: 'soldier',  patrolEnd: { x: 830,  y: 900 } },
+    { x: 1140, y: 540,  type: 'heavy',    patrolEnd: { x: 1300, y: 540 } },
+    { x: 1440, y: 300,  type: 'rifleman', patrolEnd: { x: 1440, y: 760 } },
   ],
 
   lore: [
@@ -353,6 +352,8 @@ export const ERA1_M4: MapDef = {
     { x: 1060, y: 490, id: 'e1m4_lore2', title: 'Battle Stratagem' },
     { x: 1610, y: 450, id: 'e1m4_lore3', title: "Commander's Codex" },
   ] satisfies LoreDef[],
+
+  boss: { x: 1640, y: 540 },
 }
 
 export const ERA1_MAPS: Record<number, MapDef> = {

@@ -101,3 +101,15 @@ export const BOSS_EIC_PHASE3_HP        = 0.25
 export const BOSS_EIC_BERSERK_SPEED    = 240
 export const BOSS_HELI_STRAFE_INTERVAL = 3000
 export const BOSS_HELI_STRAFE_DAMAGE   = 30
+
+// ─── Era 1 boss (Kazi Surendra Thapa) ─────────────────────────────────────────
+export const BOSS_ERA1_HP              = 300
+export const BOSS_ERA1_P1_SPEED        = 120
+export const BOSS_ERA1_P2_SPEED        = 180
+export const BOSS_ERA1_P3_SPEED        = BOSS_EIC_BERSERK_SPEED
+export const BOSS_ERA1_P1_DAMAGE       = 20
+export const BOSS_ERA1_P2_DAMAGE       = 28
+export const BOSS_ERA1_P3_DAMAGE       = 38
+export const BOSS_ERA1_SPEAR_DAMAGE    = 35
+export const BOSS_ERA1_CHARGE_DAMAGE   = 55
+export const BOSS_ERA1_MELEE_RANGE     = 65

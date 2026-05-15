@@ -5,6 +5,7 @@ import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
 import { LoreItem } from '../entities/LoreItem'
 import { Projectile } from '../entities/Projectile'
+import { Boss } from '../entities/Boss'
 import { ScoreSystem } from '../engine/ScoreSystem'
 import { WeaponSystem } from '../engine/WeaponSystem'
 import { WeaponMasterySystem } from '../engine/WeaponMasterySystem'
@@ -41,6 +42,7 @@ export class GameScene extends Phaser.Scene {
   private weaponSystem!: WeaponSystem
   private masterySystem!: WeaponMasterySystem
   private enemies: Enemy[] = []
+  private boss: Boss | null = null
   private loreItems: LoreItem[] = []
   private projectiles: Projectile[] = []
   private loreGroup!: Phaser.Physics.Arcade.Group
@@ -54,6 +56,9 @@ export class GameScene extends Phaser.Scene {
   private hpBar!: Phaser.GameObjects.Graphics
   private staminaBar!: Phaser.GameObjects.Graphics
   private reloadBar!: Phaser.GameObjects.Graphics
+  private bossHpBar: Phaser.GameObjects.Graphics | null = null
+  private bossNameText: Phaser.GameObjects.Text | null = null
+  private bossPhaseText: Phaser.GameObjects.Text | null = null
   private scoreText!: Phaser.GameObjects.Text
   private killText!: Phaser.GameObjects.Text
   private enemyCountText!: Phaser.GameObjects.Text
@@ -74,12 +79,16 @@ export class GameScene extends Phaser.Scene {
     this.enemies = []
     this.loreItems = []
     this.projectiles = []
+    this.boss = null
+    this.bossHpBar = null
+    this.bossNameText = null
+    this.bossPhaseText = null
   }
 
   create() {
     // Build map — returns wall physics group, player start, spawn list, and lore defs
     const mapDef = MAP_LIBRARY[this.era]?.[this.mission] ?? ERA1_MAPS[1]
-    const { wallGroup, playerStart, spawns, lore } = MapBuilder.build(this, mapDef)
+    const { wallGroup, playerStart, spawns, lore, boss: bossDef } = MapBuilder.build(this, mapDef)
     this.wallGroup = wallGroup
 
     // Systems
@@ -102,6 +111,13 @@ export class GameScene extends Phaser.Scene {
     // Spawn lore items
     this.spawnLore(lore)
 
+    // Spawn boss if this map has one
+    if (bossDef) {
+      this.boss = new Boss(this, bossDef.x, bossDef.y, this.era)
+      this.physics.add.collider(this.boss.sprite, this.wallGroup)
+      this.registerBossEvents()
+    }
+
     this.createHUD()
     this.createPauseOverlay()
 
@@ -122,6 +138,12 @@ export class GameScene extends Phaser.Scene {
 
     for (const enemy of this.enemies) {
       enemy.update(delta, this.player.sprite.x, this.player.sprite.y, this.player.detectionRadius)
+    }
+
+    // Boss
+    if (this.boss && !this.boss.isDead) {
+      this.boss.update(delta, this.player.sprite.x, this.player.sprite.y)
+      this.handleBossProjectileHits(delta)
     }
 
     // Ranged weapons
@@ -165,21 +187,37 @@ export class GameScene extends Phaser.Scene {
       proj.update(delta)
       if (!proj.alive) continue
 
+      const weapon = proj.type === 'knife' ? 'knife'
+        : proj.type === 'rifle' ? 'rifle' : 'musket'
+      const scaledDmg = Math.round(proj.damage * this.masterySystem.getDamageMultiplier(weapon))
+      let hit = false
+
       for (const enemy of this.enemies) {
         if (enemy.isDead) continue
         const dist = Math.sqrt((proj.x - enemy.x) ** 2 + (proj.y - enemy.y) ** 2)
         if (dist < 20) {
-          const weapon = proj.type === 'knife' ? 'knife'
-            : proj.type === 'rifle' ? 'rifle' : 'musket'
-          const scaledDmg = Math.round(proj.damage * this.masterySystem.getDamageMultiplier(weapon))
           const died = enemy.takeDamage(scaledDmg)
           if (died) this.scoreSystem.registerKill(false, false)
           const leveledUp = this.masterySystem.registerHit(weapon)
           if (leveledUp) this.showMasteryLevelUp(weapon, this.masterySystem.getLevel(weapon))
-          proj.destroy()
-          break
+          hit = true; break
         }
       }
+
+      // Projectile can also hit boss
+      if (!hit && this.boss && !this.boss.isDead) {
+        const dist = Math.sqrt((proj.x - this.boss.x) ** 2 + (proj.y - this.boss.y) ** 2)
+        if (dist < 24) {
+          const died = this.boss.takeDamage(scaledDmg)
+          if (died) this.scoreSystem.registerKill(false, false)
+          const leveledUp = this.masterySystem.registerHit(weapon)
+          if (leveledUp) this.showMasteryLevelUp(weapon, this.masterySystem.getLevel(weapon))
+          this.updateBossHUD()
+          hit = true
+        }
+      }
+
+      if (hit) proj.destroy()
     }
     this.projectiles = this.projectiles.filter(p => p.alive)
   }
@@ -188,27 +226,36 @@ export class GameScene extends Phaser.Scene {
     const { x, y, damage, range, comboFinish, isStealth } = evt
     const soundRadius = isStealth ? SOUND_STEALTH_KILL_RADIUS : SOUND_MELEE_RADIUS
     const khukuriMult = this.masterySystem.getDamageMultiplier('khukuri')
+    const scaledDmg = Math.round(damage * khukuriMult)
 
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
-
       const dx = enemy.x - x
       const dy = enemy.y - y
       const dist = Math.sqrt(dx * dx + dy * dy)
-
       if (dist <= range) {
         const isStealthKill = isStealth && enemy.state !== 'combat' && dist <= KHUKURI_STEALTH_RANGE
-        const scaledDmg = Math.round(damage * khukuriMult)
         const died = enemy.takeDamage(scaledDmg, isStealthKill)
         if (died) this.scoreSystem.registerKill(isStealthKill || isStealth, comboFinish)
-        // Register khukuri hit (stealth kills count as 1 hit)
         const leveledUp = this.masterySystem.registerHit('khukuri')
         if (leveledUp) this.showMasteryLevelUp('khukuri', this.masterySystem.getLevel('khukuri'))
       }
-
       if (soundRadius > 0) {
         const sdist = Math.sqrt((enemy.x - x) ** 2 + (enemy.y - y) ** 2)
         if (sdist <= soundRadius) enemy.alertToSound(x, y)
+      }
+    }
+
+    // Khukuri can also hit boss
+    if (this.boss && !this.boss.isDead) {
+      const bdx = this.boss.x - x
+      const bdy = this.boss.y - y
+      if (Math.sqrt(bdx * bdx + bdy * bdy) <= range) {
+        const died = this.boss.takeDamage(scaledDmg)
+        if (died) this.scoreSystem.registerKill(false, comboFinish)
+        const leveledUp = this.masterySystem.registerHit('khukuri')
+        if (leveledUp) this.showMasteryLevelUp('khukuri', this.masterySystem.getLevel('khukuri'))
+        this.updateBossHUD()
       }
     }
   }
@@ -278,6 +325,128 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  // ── Boss methods ─────────────────────────────────────────────────────────────
+
+  private registerBossEvents() {
+    // Boss melee attack lands on player if close enough
+    this.events.on('boss-melee', (evt: { damage: number; x: number; y: number }) => {
+      const dist = Math.sqrt(
+        (evt.x - this.player.sprite.x) ** 2 + (evt.y - this.player.sprite.y) ** 2
+      )
+      if (dist <= 80) this.player.takeDamage(evt.damage)
+    })
+
+    // Boss fires a spear projectile — spawn it as a Projectile
+    this.events.on('boss-fire', (evt: { x: number; y: number; dirX: number; dirY: number; damage: number }) => {
+      this.projectiles.push(new Projectile(this, {
+        type: 'musket',       // reuse musket visual for spear-ish look
+        x: evt.x, y: evt.y,
+        dirX: evt.dirX, dirY: evt.dirY,
+        damage: evt.damage,
+        speed: 500, maxRange: 400,
+        isGunshot: false,
+      }))
+    })
+
+    // Phase 3: boss spawns 2 soldier reinforcements near its current position
+    this.events.on('boss-spawn-minions', () => {
+      if (!this.boss) return
+      const offsets = [{ x: -80, y: -60 }, { x: 80, y: 60 }]
+      for (const off of offsets) {
+        const e = new Enemy(this, this.boss.x + off.x, this.boss.y + off.y, 'soldier')
+        this.physics.add.collider(e.sprite, this.wallGroup)
+        this.enemies.push(e)
+      }
+      this.showPhaseNotification('REINFORCEMENTS!', '#ff6622')
+    })
+
+    // Boss defeated
+    this.events.on('boss-defeated', () => {
+      this.scoreSystem.registerKill(false, false)
+      this.updateBossHUD()
+      this.showPhaseNotification('BOSS DEFEATED!', '#f0c040')
+      this.time.delayedCall(2000, () => {
+        if (!this.missionComplete) {
+          this.missionComplete = true
+          this.completeMission()
+        }
+      })
+    })
+
+    // Phase transition
+    this.events.on('boss-phase', (evt: { phase: number }) => {
+      const labels: Record<number, string> = { 2: 'PHASE 2 — ENRAGED!', 3: 'PHASE 3 — BERSERK!' }
+      const colors: Record<number, string> = { 2: '#ff8822', 3: '#ff2222' }
+      this.showPhaseNotification(labels[evt.phase] ?? '', colors[evt.phase] ?? '#ff4444')
+      this.updateBossHUD()
+    })
+  }
+
+  private handleBossProjectileHits(_delta: number) {
+    // Boss projectiles are already in this.projectiles — they hit the player in updateProjectiles
+    // (boss-fire projectiles are added to same pool; overlap with player handled here)
+    for (const proj of this.projectiles) {
+      if (!proj.alive) continue
+      const dist = Math.sqrt(
+        (proj.x - this.player.sprite.x) ** 2 + (proj.y - this.player.sprite.y) ** 2
+      )
+      if (dist < 16) {
+        this.player.takeDamage(proj.damage)
+        proj.destroy()
+      }
+    }
+  }
+
+  private updateBossHUD() {
+    if (!this.boss || !this.bossHpBar) return
+    const pct = Math.max(0, this.boss.hp / this.boss.maxHp)
+    const barW = 400
+    const barX = this.scale.width / 2 - barW / 2
+    const barY = 14
+
+    this.bossHpBar.clear()
+
+    // HP fill — color by phase
+    const phaseColors: Record<number, number> = { 1: 0x44bb44, 2: 0xdd8822, 3: 0xdd2222 }
+    this.bossHpBar.fillStyle(phaseColors[this.boss.phase] ?? 0xdd2222)
+    this.bossHpBar.fillRect(barX, barY, barW * pct, 16)
+
+    // Phase divider lines
+    this.bossHpBar.fillStyle(0x000000, 0.6)
+    this.bossHpBar.fillRect(barX + barW * 0.75 - 1, barY, 2, 16)  // 75% = phase 2 threshold
+    this.bossHpBar.fillRect(barX + barW * 0.25 - 1, barY, 2, 16)  // 25% = phase 3 threshold
+
+    if (this.bossPhaseText) {
+      this.bossPhaseText.setText(`Phase ${this.boss.phase}`)
+    }
+  }
+
+  private showPhaseNotification(text: string, color: string) {
+    const cx = this.scale.width / 2
+    const notif = this.add.text(cx, this.scale.height / 2 - 40, text, {
+      fontSize: '22px', color, fontStyle: 'bold',
+      backgroundColor: '#000000aa', padding: { x: 20, y: 10 },
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(25).setAlpha(0)
+
+    this.tweens.add({
+      targets: notif,
+      alpha: 1, y: this.scale.height / 2 - 55,
+      duration: 300, ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(1800, () => {
+          this.tweens.add({
+            targets: notif,
+            alpha: 0, y: this.scale.height / 2 - 70,
+            duration: 400,
+            onComplete: () => notif.destroy(),
+          })
+        })
+      },
+    })
+  }
+
+  // ── Mastery & lore notifications ─────────────────────────────────────────────
+
   private showMasteryLevelUp(weapon: string, level: number) {
     const label = weapon.charAt(0).toUpperCase() + weapon.slice(1)
     const cx = this.scale.width / 2
@@ -306,9 +475,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private checkMissionComplete() {
-    if (this.enemies.length > 0 && this.enemies.every(e => e.isDead)) {
+    const enemiesDone = this.enemies.length === 0 || this.enemies.every(e => e.isDead)
+    const bossDone = !this.boss || this.boss.isDead
+    if (enemiesDone && bossDone) {
       this.missionComplete = true
-      this.time.delayedCall(1200, () => this.completeMission())
+      this.time.delayedCall(1400, () => this.completeMission())
     }
   }
 
@@ -382,6 +553,31 @@ export class GameScene extends Phaser.Scene {
     this.add.text(20, 20, `Era ${this.era} · Mission ${this.mission}`, {
       fontSize: '13px', color: '#887755',
     }).setScrollFactor(0).setDepth(10)
+
+    // Boss HP bar — only when this map has a boss
+    if (this.boss) {
+      const barW = 400
+      const barX = this.scale.width / 2 - barW / 2
+
+      // Background track
+      const bossBg = this.add.graphics().setScrollFactor(0).setDepth(10)
+      bossBg.fillStyle(0x111111)
+      bossBg.fillRect(barX, 14, barW, 16)
+      bossBg.lineStyle(1, 0x666666, 0.6)
+      bossBg.strokeRect(barX, 14, barW, 16)
+
+      this.bossHpBar = this.add.graphics().setScrollFactor(0).setDepth(11)
+
+      this.bossNameText = this.add.text(this.scale.width / 2, 34, this.boss.name, {
+        fontSize: '11px', color: '#ffccaa', fontStyle: 'bold',
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(11)
+
+      this.bossPhaseText = this.add.text(barX + barW + 8, 16, 'Phase 1', {
+        fontSize: '10px', color: '#ff8844',
+      }).setScrollFactor(0).setDepth(11)
+
+      this.updateBossHUD()
+    }
   }
 
   private updateHUD() {
@@ -421,6 +617,8 @@ export class GameScene extends Phaser.Scene {
     this.reloadBar.clear()
     this.reloadBar.fillStyle(0xffdd00)
     this.reloadBar.fillRect(wx - 70, wY + 30, 140 * hud.heavyReloadPct, 6)
+
+    if (this.boss) this.updateBossHUD()
   }
 
   private createPauseOverlay() {

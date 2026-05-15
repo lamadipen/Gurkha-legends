@@ -25,6 +25,7 @@ export interface MapDef {
   objectivePos: { x: number; y: number }
   spawns: SpawnDef[]
   lore: LoreDef[]
+  boss?: { x: number; y: number }
 }
 
 export interface BuiltMap {
@@ -32,6 +33,7 @@ export interface BuiltMap {
   playerStart: { x: number; y: number }
   spawns: SpawnDef[]
   lore: LoreDef[]
+  boss?: { x: number; y: number }
 }
 
 export class MapBuilder {
@@ -92,6 +94,6 @@ export class MapBuilder {
     scene.physics.world.setBounds(0, 0, width, height)
     scene.cameras.main.setBounds(0, 0, width, height)
 
-    return { wallGroup, playerStart: def.playerStart, spawns: def.spawns, lore: def.lore }
+    return { wallGroup, playerStart: def.playerStart, spawns: def.spawns, lore: def.lore, boss: def.boss }
   }
 }
