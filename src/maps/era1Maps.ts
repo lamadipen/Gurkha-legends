@@ -1,4 +1,5 @@
 import type { MapDef } from './MapBuilder'
+import type { LoreDef } from '../entities/LoreItem'
 
 // Shared wall color for Era 1 — stone/clay Nepali fort aesthetic
 const WALL = 0x8b7043
@@ -112,6 +113,12 @@ export const ERA1_M1: MapDef = {
     { x: 1080, y: 360, type: 'archer',  patrolEnd: { x: 1220, y: 360 } },
     { x: 1540, y: 260, type: 'soldier', patrolEnd: { x: 1700, y: 260 } },
   ],
+
+  lore: [
+    { x: 320, y: 205, id: 'e1m1_lore1', title: "Prithvi's Manifesto" },
+    { x: 540, y: 515, id: 'e1m1_lore2', title: 'Village Elder\'s Scroll' },
+    { x: 1360, y: 230, id: 'e1m1_lore3', title: "Soldier's Prayer" },
+  ] satisfies LoreDef[],
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,6 +182,12 @@ export const ERA1_M2: MapDef = {
     { x: 1260, y: 340, type: 'rifleman', patrolEnd: { x: 1380, y: 340 } },
     { x: 1600, y: 540, type: 'heavy',    patrolEnd: { x: 1760, y: 540 } },
   ],
+
+  lore: [
+    { x: 400, y: 220, id: 'e1m2_lore1', title: 'Garrison Orders' },
+    { x: 1010, y: 490, id: 'e1m2_lore2', title: 'Supply Manifest' },
+    { x: 1520, y: 420, id: 'e1m2_lore3', title: 'Field Tactics' },
+  ] satisfies LoreDef[],
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -244,6 +257,12 @@ export const ERA1_M3: MapDef = {
     { x: 1120, y: 300, type: 'rifleman', patrolEnd: { x: 1340, y: 300 } },
     { x: 1560, y: 540, type: 'soldier',  patrolEnd: { x: 1680, y: 540 } },
   ],
+
+  lore: [
+    { x: 160, y: 175, id: 'e1m3_lore1', title: 'Guard Rotation Log' },
+    { x: 920, y: 495, id: 'e1m3_lore2', title: 'Fort Regulations' },
+    { x: 1500, y: 360, id: 'e1m3_lore3', title: 'Armory Records' },
+  ] satisfies LoreDef[],
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -328,6 +347,12 @@ export const ERA1_M4: MapDef = {
     { x: 1440, y: 300,  type: 'rifleman',  patrolEnd: { x: 1440, y: 760 } },
     { x: 1620, y: 540,  type: 'commander', patrolEnd: { x: 1620, y: 540 } },
   ],
+
+  lore: [
+    { x: 240, y: 290, id: 'e1m4_lore1', title: "The Khukuri's Legend" },
+    { x: 1060, y: 490, id: 'e1m4_lore2', title: 'Battle Stratagem' },
+    { x: 1610, y: 450, id: 'e1m4_lore3', title: "Commander's Codex" },
+  ] satisfies LoreDef[],
 }
 
 export const ERA1_MAPS: Record<number, MapDef> = {

@@ -2,15 +2,17 @@ import Phaser from 'phaser'
 import { InputManager } from '../engine/InputManager'
 import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
+import { LoreItem } from '../entities/LoreItem'
 import { ScoreSystem } from '../engine/ScoreSystem'
 import { MapBuilder } from '../maps/MapBuilder'
 import { ERA1_MAPS } from '../maps/era1Maps'
 import type { MapDef } from '../maps/MapBuilder'
+import type { LoreDef } from '../entities/LoreItem'
 import type { Difficulty, EraNumber, MissionNumber } from '../types'
 import {
   PLAYER_MAX_HP, PLAYER_MAX_STAMINA,
   SOUND_MELEE_RADIUS, SOUND_STEALTH_KILL_RADIUS,
-  KHUKURI_STEALTH_RANGE,
+  KHUKURI_STEALTH_RANGE, SCORE_BONUS_ALL_LORE,
 } from '../config/balance'
 
 interface AttackEvent {
@@ -32,7 +34,10 @@ export class GameScene extends Phaser.Scene {
   private player!: Player
   private scoreSystem!: ScoreSystem
   private enemies: Enemy[] = []
+  private loreItems: LoreItem[] = []
+  private loreGroup!: Phaser.Physics.Arcade.Group
   private wallGroup!: Phaser.Physics.Arcade.StaticGroup
+  private totalLore = 0
 
   private era: EraNumber = 1
   private mission: MissionNumber = 1
@@ -43,6 +48,7 @@ export class GameScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text
   private killText!: Phaser.GameObjects.Text
   private enemyCountText!: Phaser.GameObjects.Text
+  private loreText!: Phaser.GameObjects.Text
   private pauseOverlay!: Phaser.GameObjects.Container
   private paused = false
   private missionComplete = false
@@ -56,12 +62,13 @@ export class GameScene extends Phaser.Scene {
     this.paused = false
     this.missionComplete = false
     this.enemies = []
+    this.loreItems = []
   }
 
   create() {
-    // Build map — returns wall physics group, player start, and spawn list
+    // Build map — returns wall physics group, player start, spawn list, and lore defs
     const mapDef = MAP_LIBRARY[this.era]?.[this.mission] ?? ERA1_MAPS[1]
-    const { wallGroup, playerStart, spawns } = MapBuilder.build(this, mapDef)
+    const { wallGroup, playerStart, spawns, lore } = MapBuilder.build(this, mapDef)
     this.wallGroup = wallGroup
 
     // Systems
@@ -78,6 +85,9 @@ export class GameScene extends Phaser.Scene {
       this.physics.add.collider(enemy.sprite, this.wallGroup)
       this.enemies.push(enemy)
     }
+
+    // Spawn lore items
+    this.spawnLore(lore)
 
     this.createHUD()
     this.createPauseOverlay()
@@ -149,6 +159,57 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private spawnLore(loreDefs: LoreDef[]) {
+    this.totalLore = loreDefs.length
+    this.loreGroup = this.physics.add.group()
+
+    for (const def of loreDefs) {
+      const item = new LoreItem(this, def.x, def.y, def.id, def.title)
+      this.loreItems.push(item)
+      this.loreGroup.add(item.trigger)
+    }
+
+    this.physics.add.overlap(
+      this.player.sprite,
+      this.loreGroup,
+      (_player, trigger) => {
+        const item = this.loreItems.find(l => l.trigger === trigger && !l.collected)
+        if (!item) return
+        item.collect(this)
+        this.scoreSystem.registerLore()
+        this.showLoreNotification(item.title)
+      },
+    )
+  }
+
+  private showLoreNotification(title: string) {
+    const cx = this.scale.width / 2
+    const notif = this.add.text(cx, 60, `LORE FOUND\n${title}`, {
+      fontSize: '14px', color: '#f0c040', fontStyle: 'bold',
+      align: 'center', backgroundColor: '#00000088',
+      padding: { x: 14, y: 8 },
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(20).setAlpha(0)
+
+    this.tweens.add({
+      targets: notif,
+      alpha: 1,
+      y: 70,
+      duration: 300,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(1800, () => {
+          this.tweens.add({
+            targets: notif,
+            alpha: 0,
+            y: 50,
+            duration: 400,
+            onComplete: () => notif.destroy(),
+          })
+        })
+      },
+    })
+  }
+
   private checkMissionComplete() {
     if (this.enemies.length > 0 && this.enemies.every(e => e.isDead)) {
       this.missionComplete = true
@@ -157,14 +218,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   completeMission() {
+    const allLore = this.scoreSystem.loreCount >= this.totalLore && this.totalLore > 0
+    if (allLore) this.scoreSystem.registerLore() // +1500 all-lore bonus via balance constant
+
     this.scene.start('MissionCompleteScene', {
       era: this.era, mission: this.mission, difficulty: this.difficulty,
       result: {
-        score: this.scoreSystem.score,
+        score: this.scoreSystem.score + (allLore ? SCORE_BONUS_ALL_LORE : 0),
         kills: this.scoreSystem.kills,
         stealthKills: this.scoreSystem.stealthKills,
         noHits: this.player.hp === PLAYER_MAX_HP,
-        allLore: false, underPar: false, timeTaken: 0, masteryGained: {},
+        allLore,
+        underPar: false, timeTaken: 0, masteryGained: {},
       },
     })
   }
@@ -196,6 +261,10 @@ export class GameScene extends Phaser.Scene {
       fontSize: '13px', color: '#cc4444',
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(10)
 
+    this.loreText = this.add.text(this.scale.width - 20, 20, 'LORE: 0/0', {
+      fontSize: '12px', color: '#f0c040',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(10)
+
     this.add.text(20, 20, `Era ${this.era} · Mission ${this.mission}`, {
       fontSize: '13px', color: '#887755',
     }).setScrollFactor(0).setDepth(10)
@@ -217,6 +286,8 @@ export class GameScene extends Phaser.Scene {
 
     const alive = this.enemies.filter(e => !e.isDead).length
     this.enemyCountText.setText(alive > 0 ? `ENEMIES: ${alive}` : '— ALL CLEAR —')
+
+    this.loreText.setText(`LORE: ${this.scoreSystem.loreCount}/${this.totalLore}`)
   }
 
   private createPauseOverlay() {

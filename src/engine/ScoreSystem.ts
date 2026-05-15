@@ -6,6 +6,7 @@ export class ScoreSystem {
   private _score = 0
   private _kills = 0
   private _stealthKills = 0
+  private _loreCount = 0
   private readonly diffMult: number
 
   constructor(difficulty: Difficulty) {
@@ -16,6 +17,7 @@ export class ScoreSystem {
   get score() { return this._score }
   get kills() { return this._kills }
   get stealthKills() { return this._stealthKills }
+  get loreCount() { return this._loreCount }
 
   registerKill(stealth: boolean, comboFinish: boolean) {
     this._kills++
@@ -26,6 +28,7 @@ export class ScoreSystem {
   }
 
   registerLore() {
+    this._loreCount++
     this._score += SCORE_LORE_ITEM
   }
 }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import type { EnemyType } from '../entities/Enemy'
+import type { LoreDef } from '../entities/LoreItem'
 
 export interface WallRect {
   x: number; y: number; w: number; h: number
@@ -23,12 +24,14 @@ export interface MapDef {
   playerStart: { x: number; y: number }
   objectivePos: { x: number; y: number }
   spawns: SpawnDef[]
+  lore: LoreDef[]
 }
 
 export interface BuiltMap {
   wallGroup: Phaser.Physics.Arcade.StaticGroup
   playerStart: { x: number; y: number }
   spawns: SpawnDef[]
+  lore: LoreDef[]
 }
 
 export class MapBuilder {
@@ -89,6 +92,6 @@ export class MapBuilder {
     scene.physics.world.setBounds(0, 0, width, height)
     scene.cameras.main.setBounds(0, 0, width, height)
 
-    return { wallGroup, playerStart: def.playerStart, spawns: def.spawns }
+    return { wallGroup, playerStart: def.playerStart, spawns: def.spawns, lore: def.lore }
   }
 }
