@@ -203,33 +203,115 @@ function drawPlayerLeft(ctx: Ctx, ox: number, phase: number, breath = 0) {
 
 // ─── Player: ATTACK frames ────────────────────────────────────────────────────
 
+// slashArc: draws the curved khukuri trail using a quadratic bezier stroke
+function slashArc(ctx: Ctx, ox: number, alpha: number, width: number, color: string,
+  x1: number, y1: number, cpx: number, cpy: number, x2: number, y2: number) {
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = color
+  ctx.lineWidth = width
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+  ctx.moveTo(ox+x1, y1)
+  ctx.quadraticCurveTo(ox+cpx, cpy, ox+x2, y2)
+  ctx.stroke()
+  ctx.restore()
+}
+
+// impactBurst: layered radial glow at the blade tip
+function impactBurst(ctx: Ctx, ox: number, cx: number, cy: number, alpha: number) {
+  ctx.save()
+  // Outer soft halo
+  ctx.globalAlpha = alpha * 0.22; ctx.fillStyle = '#ff8800'
+  ctx.beginPath(); ctx.arc(ox+cx, cy, 14, 0, Math.PI*2); ctx.fill()
+  // Mid ring
+  ctx.globalAlpha = alpha * 0.45; ctx.fillStyle = '#ffcc44'
+  ctx.beginPath(); ctx.arc(ox+cx, cy, 8, 0, Math.PI*2); ctx.fill()
+  // Core flash
+  ctx.globalAlpha = alpha * 0.85; ctx.fillStyle = '#fffae0'
+  ctx.beginPath(); ctx.arc(ox+cx, cy, 4, 0, Math.PI*2); ctx.fill()
+  // Bright centre pixel
+  ctx.globalAlpha = 1; ctx.fillStyle = '#ffffff'
+  ctx.beginPath(); ctx.arc(ox+cx, cy, 1.5, 0, Math.PI*2); ctx.fill()
+  // Radial spark lines
+  ctx.strokeStyle = '#ffee88'; ctx.lineWidth = 1; ctx.globalAlpha = alpha * 0.75
+  const dirs = [[1,0],[0.7,0.7],[0,1],[-0.7,0.7],[1,-0.7],[0,-1]]
+  for (const [dx, dy] of dirs) {
+    ctx.beginPath()
+    ctx.moveTo(ox+cx + dx*5, cy + dy*5)
+    ctx.lineTo(ox+cx + dx*13, cy + dy*13)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 function drawPlayerAttack(ctx: Ctx, ox: number, frame: number) {
   dropShadow(ctx, ox)
 
-  // Legs static (planted)
-  fr(ctx, P.trous, ox+10, 24, 5, 6); fr(ctx, P.boot, ox+10, 29, 5, 2)
-  fr(ctx, P.trous, ox+17, 24, 5, 6); fr(ctx, P.boot, ox+17, 29, 5, 2)
+  // Legs stay planted for all attack frames
+  fr(ctx, P.trous, ox+9,  24, 5, 6); fr(ctx, P.boot, ox+9,  29, 5, 2)
+  fr(ctx, P.trous, ox+18, 24, 5, 6); fr(ctx, P.boot, ox+18, 29, 5, 2)
 
-  if (frame === 0) {
-    // Wind-up: both arms raised, khukuri up
-    fr(ctx, P.unifD, ox+5,  14, 4, 8); fr(ctx, P.skin, ox+5,  21, 4, 3)
-    fr(ctx, P.unifD, ox+22, 10, 5, 9); fr(ctx, P.skin, ox+22, 18, 4, 3)
-    fr(ctx, P.blade,   ox+23, 5, 2, 8)
-    fr(ctx, P.bladeHi, ox+23, 5, 1, 3)
-  } else if (frame === 1) {
-    // Slash: right arm extended diagonally
-    fr(ctx, P.unifD, ox+5,  16, 4, 9); fr(ctx, P.skin, ox+5,  24, 4, 3)
-    fr(ctx, P.unifD, ox+22, 16, 6, 8); fr(ctx, P.skin, ox+26, 23, 4, 3)
-    fr(ctx, P.blade,   ox+24, 22, 9, 2)
-    fr(ctx, P.bladeHi, ox+31, 21, 2, 1)
-    // Slash glow
-    ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = '#ffdd88'
-    ctx.beginPath(); ctx.arc(ox+30, 23, 5, 0, Math.PI*2); ctx.fill(); ctx.restore()
-  } else {
-    // Follow-through: arm lower, blade horizontal
-    fr(ctx, P.unifD, ox+5,  16, 4, 9); fr(ctx, P.skin, ox+5,  24, 4, 3)
-    fr(ctx, P.unifD, ox+22, 19, 5, 7); fr(ctx, P.skin, ox+24, 25, 4, 3)
-    fr(ctx, P.blade, ox+22, 26, 8, 2)
+  switch (frame) {
+    case 0: // Wind-up — khukuri raised behind head
+      fr(ctx, P.unifD, ox+5,  15, 4, 9); fr(ctx, P.skin, ox+5,  23, 4, 3)
+      fr(ctx, P.unifD, ox+22, 8,  5, 11); fr(ctx, P.skin, ox+22, 18, 4, 3)
+      fr(ctx, P.blade,   ox+22, 1, 3, 10)
+      fr(ctx, P.bladeHi, ox+22, 1, 1, 4)
+      // Subtle charge glow
+      ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = '#ffee88'
+      ctx.beginPath(); ctx.arc(ox+24, 3, 5, 0, Math.PI*2); ctx.fill(); ctx.restore()
+      break
+
+    case 1: // Draw back — body coiling, arc begins at top
+      fr(ctx, P.unifD, ox+4,  14, 4, 9); fr(ctx, P.skin, ox+4,  22, 4, 3)
+      fr(ctx, P.unifD, ox+23, 9,  5, 10); fr(ctx, P.skin, ox+25, 18, 4, 3)
+      fr(ctx, P.blade,   ox+22, 4, 9, 2)
+      fr(ctx, P.bladeHi, ox+22, 3, 4, 1)
+      // Arc trail just starting (10 o'clock → 1 o'clock)
+      slashArc(ctx, ox, 0.6, 3, '#ffee88', 20, 5, 33, 8,  31, 14)
+      slashArc(ctx, ox, 0.9, 1, '#ffffff', 21, 6, 32, 9,  30, 13)
+      ctx.save(); ctx.globalAlpha = 0.4; ctx.fillStyle = '#ffcc44'
+      ctx.beginPath(); ctx.arc(ox+30, 14, 4, 0, Math.PI*2); ctx.fill(); ctx.restore()
+      break
+
+    case 2: // Slash mid-swing — arc sweeping from 11 o'clock to 4 o'clock
+      fr(ctx, P.unifD, ox+5,  16, 4, 9); fr(ctx, P.skin, ox+5,  24, 4, 3)
+      fr(ctx, P.unifD, ox+22, 14, 6, 9); fr(ctx, P.skin, ox+26, 22, 4, 3)
+      fr(ctx, P.blade,   ox+25, 21, 7, 2)
+      fr(ctx, P.bladeHi, ox+30, 20, 2, 1)
+      // Wide sweeping arc trail
+      slashArc(ctx, ox, 0.55, 5, '#ff8800', 18, 4, 38, 10, 32, 26)
+      slashArc(ctx, ox, 0.80, 3, '#ffcc44', 19, 5, 37, 11, 31, 25)
+      slashArc(ctx, ox, 0.95, 1, '#ffffff', 20, 6, 36, 12, 30, 24)
+      ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#ffdd88'
+      ctx.beginPath(); ctx.arc(ox+30, 24, 6, 0, Math.PI*2); ctx.fill(); ctx.restore()
+      break
+
+    case 3: // IMPACT — full extension + massive radial burst
+      fr(ctx, P.unifD, ox+5,  16, 4, 9); fr(ctx, P.skin, ox+5,  24, 4, 3)
+      fr(ctx, P.unifD, ox+22, 17, 6, 8); fr(ctx, P.skin, ox+26, 24, 4, 3)
+      fr(ctx, P.blade,   ox+24, 23, 9, 2)
+      fr(ctx, P.bladeHi, ox+31, 22, 2, 1)
+      // Full arc trail behind the slash
+      slashArc(ctx, ox, 0.45, 6, '#ff6600', 18, 3, 40, 12, 32, 28)
+      slashArc(ctx, ox, 0.70, 4, '#ffaa22', 19, 4, 39, 13, 31, 27)
+      slashArc(ctx, ox, 0.90, 2, '#ffee88', 20, 5, 38, 14, 30, 26)
+      // BIG impact burst at blade tip
+      impactBurst(ctx, ox, 31, 24, 1.0)
+      break
+
+    case 4: // Follow-through — arm swept low, arc fading
+      fr(ctx, P.unifD, ox+5,  16, 4, 9); fr(ctx, P.skin, ox+5,  24, 4, 3)
+      fr(ctx, P.unifD, ox+21, 20, 5, 8); fr(ctx, P.skin, ox+23, 27, 4, 3)
+      fr(ctx, P.blade, ox+21, 28, 9, 2)
+      // Fading arc ghost
+      slashArc(ctx, ox, 0.20, 4, '#ffaa22', 19, 4, 38, 13, 30, 27)
+      slashArc(ctx, ox, 0.30, 2, '#ffee88', 20, 5, 37, 14, 29, 26)
+      // Fading burst remnant
+      impactBurst(ctx, ox, 30, 27, 0.25)
+      break
   }
 
   drawTorso(ctx, ox, P.unif, P.unifL, P.unifD, 0)
@@ -434,7 +516,7 @@ function makeCanvas(frames: number): [HTMLCanvasElement, Ctx] {
 // Player spritesheet layout:
 // 0-1: idle_down  2-5: walk_down  6-7: idle_up  8-11: walk_up
 // 12-13: idle_left  14-17: walk_left  18-20: attack  21: crouch  22: dodge
-const PLAYER_TOTAL_FRAMES = 23
+const PLAYER_TOTAL_FRAMES = 25  // 5 attack frames instead of 3
 
 function generatePlayerTexture(scene: Phaser.Scene) {
   if (scene.textures.exists('player')) return
@@ -456,12 +538,12 @@ function generatePlayerTexture(scene: Phaser.Scene) {
   drawPlayerLeft(ctx, 13*FW, 0, -1)
   // walk_left 14-17
   for (let p = 0; p < 4; p++) drawPlayerLeft(ctx, (14+p)*FW, p)
-  // attack 18-20
-  for (let f = 0; f < 3; f++) drawPlayerAttack(ctx, (18+f)*FW, f)
-  // crouch 21
-  drawPlayerCrouch(ctx, 21*FW)
-  // dodge 22
-  drawPlayerDodge(ctx, 22*FW)
+  // attack 18-22  (5 frames)
+  for (let f = 0; f < 5; f++) drawPlayerAttack(ctx, (18+f)*FW, f)
+  // crouch 23
+  drawPlayerCrouch(ctx, 23*FW)
+  // dodge 24
+  drawPlayerDodge(ctx, 24*FW)
 
   scene.textures.addSpriteSheet('player', canvas as unknown as HTMLImageElement, { frameWidth: FW, frameHeight: FH })
 
@@ -472,9 +554,9 @@ function generatePlayerTexture(scene: Phaser.Scene) {
   A.create({ key: 'player_walk_up',    frames: A.generateFrameNumbers('player', { start: 8,  end: 11 }), frameRate: 8,  repeat: -1 })
   A.create({ key: 'player_idle_left',  frames: A.generateFrameNumbers('player', { start: 12, end: 13 }), frameRate: 2,  repeat: -1 })
   A.create({ key: 'player_walk_left',  frames: A.generateFrameNumbers('player', { start: 14, end: 17 }), frameRate: 8,  repeat: -1 })
-  A.create({ key: 'player_attack',     frames: A.generateFrameNumbers('player', { start: 18, end: 20 }), frameRate: 12, repeat: 0  })
-  A.create({ key: 'player_crouch',     frames: A.generateFrameNumbers('player', { start: 21, end: 21 }), frameRate: 1,  repeat: -1 })
-  A.create({ key: 'player_dodge',      frames: A.generateFrameNumbers('player', { start: 22, end: 22 }), frameRate: 1,  repeat: -1 })
+  A.create({ key: 'player_attack',     frames: A.generateFrameNumbers('player', { start: 18, end: 22 }), frameRate: 14, repeat: 0  })
+  A.create({ key: 'player_crouch',     frames: A.generateFrameNumbers('player', { start: 23, end: 23 }), frameRate: 1,  repeat: -1 })
+  A.create({ key: 'player_dodge',      frames: A.generateFrameNumbers('player', { start: 24, end: 24 }), frameRate: 1,  repeat: -1 })
 }
 
 // Enemy spritesheet layout per type:
