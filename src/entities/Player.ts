@@ -55,7 +55,7 @@ export class Player {
     this.physBody.setSize(18, 18)
 
     this.sprite.on('animationcomplete', (anim: Phaser.Animations.Animation) => {
-      if (anim.key === 'player_attack') this.attacking = false
+      if (anim.key === 'player_attack_down' || anim.key === 'player_attack_side') this.attacking = false
     })
 
     this.sprite.play('player_idle_down')
@@ -196,7 +196,9 @@ export class Player {
   private triggerAttackAnim() {
     this.attacking = true
     this.sprite.setFlipX(this.facingRight)
-    this.sprite.play('player_attack')
+    // Side attack: arc drawn on LEFT side of frame; flipX mirrors it for right-facing
+    const key = this.animDir === 'left' ? 'player_attack_side' : 'player_attack_down'
+    this.sprite.play(key)
   }
 
   private emitAttack(damage: number, range: number, comboFinish: boolean,

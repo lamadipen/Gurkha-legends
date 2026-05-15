@@ -246,71 +246,63 @@ function impactBurst(ctx: Ctx, ox: number, cx: number, cy: number, alpha: number
   ctx.restore()
 }
 
+// Down-facing attack — arc sweeps upper-right → lower-right, all coords within [0,31]
 function drawPlayerAttack(ctx: Ctx, ox: number, frame: number) {
   dropShadow(ctx, ox)
-
-  // Legs stay planted for all attack frames
   fr(ctx, P.trous, ox+9,  24, 5, 6); fr(ctx, P.boot, ox+9,  29, 5, 2)
   fr(ctx, P.trous, ox+18, 24, 5, 6); fr(ctx, P.boot, ox+18, 29, 5, 2)
 
   switch (frame) {
-    case 0: // Wind-up — khukuri raised behind head
+    case 0: // Wind-up — blade raised, no arc yet
       fr(ctx, P.unifD, ox+5,  15, 4, 9); fr(ctx, P.skin, ox+5,  23, 4, 3)
       fr(ctx, P.unifD, ox+22, 8,  5, 11); fr(ctx, P.skin, ox+22, 18, 4, 3)
       fr(ctx, P.blade,   ox+22, 1, 3, 10)
       fr(ctx, P.bladeHi, ox+22, 1, 1, 4)
-      // Subtle charge glow
       ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = '#ffee88'
       ctx.beginPath(); ctx.arc(ox+24, 3, 5, 0, Math.PI*2); ctx.fill(); ctx.restore()
       break
 
-    case 1: // Draw back — body coiling, arc begins at top
+    case 1: // Arc starts — tip at 1 o'clock, cp clamped to x=31
       fr(ctx, P.unifD, ox+4,  14, 4, 9); fr(ctx, P.skin, ox+4,  22, 4, 3)
       fr(ctx, P.unifD, ox+23, 9,  5, 10); fr(ctx, P.skin, ox+25, 18, 4, 3)
-      fr(ctx, P.blade,   ox+22, 4, 9, 2)
-      fr(ctx, P.bladeHi, ox+22, 3, 4, 1)
-      // Arc trail just starting (10 o'clock → 1 o'clock)
-      slashArc(ctx, ox, 0.6, 3, '#ffee88', 20, 5, 33, 8,  31, 14)
-      slashArc(ctx, ox, 0.9, 1, '#ffffff', 21, 6, 32, 9,  30, 13)
-      ctx.save(); ctx.globalAlpha = 0.4; ctx.fillStyle = '#ffcc44'
-      ctx.beginPath(); ctx.arc(ox+30, 14, 4, 0, Math.PI*2); ctx.fill(); ctx.restore()
+      fr(ctx, P.blade,   ox+21, 4, 9, 2)
+      fr(ctx, P.bladeHi, ox+21, 3, 4, 1)
+      slashArc(ctx, ox, 0.65, 3, '#ffee88', 20, 4, 31,  8, 29, 15)
+      slashArc(ctx, ox, 0.90, 1, '#ffffff', 21, 5, 30,  9, 28, 14)
+      ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = '#ffcc44'
+      ctx.beginPath(); ctx.arc(ox+28, 15, 4, 0, Math.PI*2); ctx.fill(); ctx.restore()
       break
 
-    case 2: // Slash mid-swing — arc sweeping from 11 o'clock to 4 o'clock
+    case 2: // Mid-swing — full arc visible, cp at right edge
       fr(ctx, P.unifD, ox+5,  16, 4, 9); fr(ctx, P.skin, ox+5,  24, 4, 3)
       fr(ctx, P.unifD, ox+22, 14, 6, 9); fr(ctx, P.skin, ox+26, 22, 4, 3)
-      fr(ctx, P.blade,   ox+25, 21, 7, 2)
-      fr(ctx, P.bladeHi, ox+30, 20, 2, 1)
-      // Wide sweeping arc trail
-      slashArc(ctx, ox, 0.55, 5, '#ff8800', 18, 4, 38, 10, 32, 26)
-      slashArc(ctx, ox, 0.80, 3, '#ffcc44', 19, 5, 37, 11, 31, 25)
-      slashArc(ctx, ox, 0.95, 1, '#ffffff', 20, 6, 36, 12, 30, 24)
-      ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#ffdd88'
-      ctx.beginPath(); ctx.arc(ox+30, 24, 6, 0, Math.PI*2); ctx.fill(); ctx.restore()
+      fr(ctx, P.blade,   ox+24, 21, 7, 2)
+      fr(ctx, P.bladeHi, ox+29, 20, 2, 1)
+      slashArc(ctx, ox, 0.50, 6, '#ff8800', 19, 3, 31, 12, 27, 26)
+      slashArc(ctx, ox, 0.78, 4, '#ffcc44', 20, 4, 31, 13, 26, 25)
+      slashArc(ctx, ox, 0.95, 2, '#fffae0', 21, 5, 30, 14, 25, 24)
+      ctx.save(); ctx.globalAlpha = 0.50; ctx.fillStyle = '#ffdd88'
+      ctx.beginPath(); ctx.arc(ox+26, 25, 5, 0, Math.PI*2); ctx.fill(); ctx.restore()
       break
 
-    case 3: // IMPACT — full extension + massive radial burst
+    case 3: // IMPACT — blade at 5 o'clock, burst at tip
       fr(ctx, P.unifD, ox+5,  16, 4, 9); fr(ctx, P.skin, ox+5,  24, 4, 3)
-      fr(ctx, P.unifD, ox+22, 17, 6, 8); fr(ctx, P.skin, ox+26, 24, 4, 3)
-      fr(ctx, P.blade,   ox+24, 23, 9, 2)
-      fr(ctx, P.bladeHi, ox+31, 22, 2, 1)
-      // Full arc trail behind the slash
-      slashArc(ctx, ox, 0.45, 6, '#ff6600', 18, 3, 40, 12, 32, 28)
-      slashArc(ctx, ox, 0.70, 4, '#ffaa22', 19, 4, 39, 13, 31, 27)
-      slashArc(ctx, ox, 0.90, 2, '#ffee88', 20, 5, 38, 14, 30, 26)
-      // BIG impact burst at blade tip
-      impactBurst(ctx, ox, 31, 24, 1.0)
+      fr(ctx, P.unifD, ox+21, 17, 6, 8); fr(ctx, P.skin, ox+25, 24, 4, 3)
+      fr(ctx, P.blade,   ox+22, 23, 8, 2)
+      fr(ctx, P.bladeHi, ox+28, 22, 3, 1)
+      slashArc(ctx, ox, 0.40, 7, '#ff6600', 18, 2, 31, 13, 26, 29)
+      slashArc(ctx, ox, 0.68, 5, '#ffaa22', 19, 3, 31, 14, 25, 28)
+      slashArc(ctx, ox, 0.90, 2, '#ffee88', 20, 4, 30, 15, 24, 27)
+      impactBurst(ctx, ox, 27, 27, 1.0)
       break
 
-    case 4: // Follow-through — arm swept low, arc fading
+    case 4: // Follow-through — arm low, ghost arc fading
       fr(ctx, P.unifD, ox+5,  16, 4, 9); fr(ctx, P.skin, ox+5,  24, 4, 3)
       fr(ctx, P.unifD, ox+21, 20, 5, 8); fr(ctx, P.skin, ox+23, 27, 4, 3)
-      fr(ctx, P.blade, ox+21, 28, 9, 2)
-      // Fading arc ghost
-      slashArc(ctx, ox, 0.20, 4, '#ffaa22', 19, 4, 38, 13, 30, 27)
-      slashArc(ctx, ox, 0.30, 2, '#ffee88', 20, 5, 37, 14, 29, 26)
-      // Fading burst remnant
-      impactBurst(ctx, ox, 30, 27, 0.25)
+      fr(ctx, P.blade, ox+20, 28, 9, 2)
+      slashArc(ctx, ox, 0.18, 5, '#ffaa22', 19, 3, 30, 13, 25, 28)
+      slashArc(ctx, ox, 0.28, 2, '#ffee88', 20, 4, 29, 14, 24, 27)
+      impactBurst(ctx, ox, 26, 27, 0.22)
       break
   }
 
@@ -318,6 +310,75 @@ function drawPlayerAttack(ctx: Ctx, ox: number, frame: number) {
   fr(ctx, P.belt, ox+9, 21, 12, 2); fr(ctx, P.buckle, ox+14, 21, 4, 2)
   drawHead(ctx, ox, P.skin, P.skinDk, 0, true)
   fr(ctx, P.hat, ox+9, 1, 14, 8); fr(ctx, P.hatBd, ox+8, 7, 16, 2)
+}
+
+// Side-facing attack — arc sweeps LEFT side (flipX handles right-facing)
+// All coords within [0,31]. Arc on left so it matches left-facing direction.
+function drawPlayerAttackSide(ctx: Ctx, ox: number, frame: number) {
+  dropShadow(ctx, ox)
+  fr(ctx, P.trous, ox+9,  24, 5, 6); fr(ctx, P.boot, ox+9,  29, 5, 2)
+  fr(ctx, P.trous, ox+18, 24, 5, 6); fr(ctx, P.boot, ox+18, 29, 5, 2)
+
+  switch (frame) {
+    case 0: // Wind-up — arm pulled to right, blade at 1 o'clock
+      fr(ctx, P.unifD, ox+22, 8,  5, 11); fr(ctx, P.skin, ox+22, 18, 4, 3)
+      fr(ctx, P.unifD, ox+19, 16, 4, 9);  fr(ctx, P.skin, ox+19, 24, 4, 3)
+      fr(ctx, P.blade,   ox+22, 1, 3, 10)
+      fr(ctx, P.bladeHi, ox+22, 1, 1, 4)
+      ctx.save(); ctx.globalAlpha = 0.30; ctx.fillStyle = '#ffee88'
+      ctx.beginPath(); ctx.arc(ox+24, 3, 5, 0, Math.PI*2); ctx.fill(); ctx.restore()
+      break
+
+    case 1: // Arc beginning — tip swings to upper-left
+      fr(ctx, P.unifD, ox+22, 9,  5, 10); fr(ctx, P.skin, ox+22, 18, 4, 3)
+      fr(ctx, P.unifD, ox+19, 15, 4, 9);  fr(ctx, P.skin, ox+19, 23, 4, 3)
+      fr(ctx, P.blade,   ox+12, 4, 9, 2)
+      fr(ctx, P.bladeHi, ox+12, 3, 4, 1)
+      slashArc(ctx, ox, 0.65, 3, '#ffee88', 12, 5, 1, 8, 3, 15)
+      slashArc(ctx, ox, 0.90, 1, '#ffffff', 13, 6, 2, 9, 4, 14)
+      ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = '#ffcc44'
+      ctx.beginPath(); ctx.arc(ox+3, 15, 4, 0, Math.PI*2); ctx.fill(); ctx.restore()
+      break
+
+    case 2: // Mid-swing — arm extended left, full arc visible
+      fr(ctx, P.unifD, ox+20, 15, 4, 9); fr(ctx, P.skin, ox+20, 23, 4, 3)
+      fr(ctx, P.unifD, ox+4,  15, 5, 9);  fr(ctx, P.skin, ox+3,  23, 4, 3)
+      fr(ctx, P.blade,   ox+0, 21, 8, 2)
+      fr(ctx, P.bladeHi, ox+0, 20, 3, 1)
+      slashArc(ctx, ox, 0.50, 6, '#ff8800', 13, 3, 0, 12, 4, 26)
+      slashArc(ctx, ox, 0.78, 4, '#ffcc44', 12, 4, 1, 13, 5, 25)
+      slashArc(ctx, ox, 0.95, 2, '#fffae0', 11, 5, 2, 14, 6, 24)
+      ctx.save(); ctx.globalAlpha = 0.50; ctx.fillStyle = '#ffdd88'
+      ctx.beginPath(); ctx.arc(ox+5, 25, 5, 0, Math.PI*2); ctx.fill(); ctx.restore()
+      break
+
+    case 3: // IMPACT — blade at lower-left, burst
+      fr(ctx, P.unifD, ox+20, 16, 4, 9); fr(ctx, P.skin, ox+20, 24, 4, 3)
+      fr(ctx, P.unifD, ox+3,  16, 6, 8);  fr(ctx, P.skin, ox+2,  23, 4, 3)
+      fr(ctx, P.blade,   ox+0, 23, 8, 2)
+      fr(ctx, P.bladeHi, ox+0, 22, 3, 1)
+      slashArc(ctx, ox, 0.40, 7, '#ff6600', 14, 2, 0, 13, 5, 29)
+      slashArc(ctx, ox, 0.68, 5, '#ffaa22', 13, 3, 1, 14, 6, 28)
+      slashArc(ctx, ox, 0.90, 2, '#ffee88', 12, 4, 2, 15, 7, 27)
+      impactBurst(ctx, ox, 5, 27, 1.0)
+      break
+
+    case 4: // Follow-through — ghost arc fading
+      fr(ctx, P.unifD, ox+20, 16, 4, 9); fr(ctx, P.skin, ox+20, 24, 4, 3)
+      fr(ctx, P.unifD, ox+4,  19, 5, 8);  fr(ctx, P.skin, ox+3,  26, 4, 3)
+      fr(ctx, P.blade, ox+0, 28, 9, 2)
+      slashArc(ctx, ox, 0.18, 5, '#ffaa22', 13, 3, 1, 13, 5, 28)
+      slashArc(ctx, ox, 0.28, 2, '#ffee88', 12, 4, 2, 14, 6, 27)
+      impactBurst(ctx, ox, 5, 27, 0.22)
+      break
+  }
+
+  drawTorso(ctx, ox, P.unif, P.unifL, P.unifD, 0)
+  fr(ctx, P.belt, ox+9, 21, 12, 2); fr(ctx, P.buckle, ox+14, 21, 4, 2)
+  // Side profile head
+  fc(ctx, P.skinDk, ox+14, 9, 7); fc(ctx, P.skin, ox+13, 8, 6.5)
+  fr(ctx, '#201000', ox+8, 9, 2, 2)
+  fr(ctx, P.hat, ox+6,  1, 13, 8); fr(ctx, P.hatBd, ox+5, 7, 14, 2)
 }
 
 // ─── Player: CROUCH ───────────────────────────────────────────────────────────
@@ -516,7 +577,7 @@ function makeCanvas(frames: number): [HTMLCanvasElement, Ctx] {
 // Player spritesheet layout:
 // 0-1: idle_down  2-5: walk_down  6-7: idle_up  8-11: walk_up
 // 12-13: idle_left  14-17: walk_left  18-20: attack  21: crouch  22: dodge
-const PLAYER_TOTAL_FRAMES = 25  // 5 attack frames instead of 3
+const PLAYER_TOTAL_FRAMES = 32  // down-attack(5) + side-attack(5) + crouch + dodge
 
 function generatePlayerTexture(scene: Phaser.Scene) {
   if (scene.textures.exists('player')) return
@@ -538,12 +599,14 @@ function generatePlayerTexture(scene: Phaser.Scene) {
   drawPlayerLeft(ctx, 13*FW, 0, -1)
   // walk_left 14-17
   for (let p = 0; p < 4; p++) drawPlayerLeft(ctx, (14+p)*FW, p)
-  // attack 18-22  (5 frames)
+  // attack_down 18-22  (5 frames — down/up facing)
   for (let f = 0; f < 5; f++) drawPlayerAttack(ctx, (18+f)*FW, f)
-  // crouch 23
-  drawPlayerCrouch(ctx, 23*FW)
-  // dodge 24
-  drawPlayerDodge(ctx, 24*FW)
+  // attack_side 23-27  (5 frames — left/right facing, flipX for right)
+  for (let f = 0; f < 5; f++) drawPlayerAttackSide(ctx, (23+f)*FW, f)
+  // crouch 28
+  drawPlayerCrouch(ctx, 28*FW)
+  // dodge 29
+  drawPlayerDodge(ctx, 29*FW)
 
   scene.textures.addSpriteSheet('player', canvas as unknown as HTMLImageElement, { frameWidth: FW, frameHeight: FH })
 
@@ -554,9 +617,10 @@ function generatePlayerTexture(scene: Phaser.Scene) {
   A.create({ key: 'player_walk_up',    frames: A.generateFrameNumbers('player', { start: 8,  end: 11 }), frameRate: 8,  repeat: -1 })
   A.create({ key: 'player_idle_left',  frames: A.generateFrameNumbers('player', { start: 12, end: 13 }), frameRate: 2,  repeat: -1 })
   A.create({ key: 'player_walk_left',  frames: A.generateFrameNumbers('player', { start: 14, end: 17 }), frameRate: 8,  repeat: -1 })
-  A.create({ key: 'player_attack',     frames: A.generateFrameNumbers('player', { start: 18, end: 22 }), frameRate: 14, repeat: 0  })
-  A.create({ key: 'player_crouch',     frames: A.generateFrameNumbers('player', { start: 23, end: 23 }), frameRate: 1,  repeat: -1 })
-  A.create({ key: 'player_dodge',      frames: A.generateFrameNumbers('player', { start: 24, end: 24 }), frameRate: 1,  repeat: -1 })
+  A.create({ key: 'player_attack_down', frames: A.generateFrameNumbers('player', { start: 18, end: 22 }), frameRate: 14, repeat: 0  })
+  A.create({ key: 'player_attack_side', frames: A.generateFrameNumbers('player', { start: 23, end: 27 }), frameRate: 14, repeat: 0  })
+  A.create({ key: 'player_crouch',      frames: A.generateFrameNumbers('player', { start: 28, end: 28 }), frameRate: 1,  repeat: -1 })
+  A.create({ key: 'player_dodge',       frames: A.generateFrameNumbers('player', { start: 29, end: 29 }), frameRate: 1,  repeat: -1 })
 }
 
 // Enemy spritesheet layout per type:
