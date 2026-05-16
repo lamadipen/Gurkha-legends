@@ -46,6 +46,7 @@ export class GameScene extends Phaser.Scene {
   private boss: Boss | null = null
   private loreItems: LoreItem[] = []
   private projectiles: Projectile[] = []
+  private projectileGroup!: Phaser.Physics.Arcade.Group
   private loreGroup!: Phaser.Physics.Arcade.Group
   private wallGroup!: Phaser.Physics.Arcade.StaticGroup
   private totalLore = 0
@@ -119,6 +120,14 @@ export class GameScene extends Phaser.Scene {
     // Enemy ↔ enemy — they spread out, don't stack
     this.physics.add.collider(this.enemyGroup, this.enemyGroup)
 
+    // Projectile group — collides with walls to block shots
+    this.projectileGroup = this.physics.add.group()
+    this.physics.add.collider(this.projectileGroup, this.wallGroup, (_proj) => {
+      const rect = _proj as Phaser.GameObjects.Rectangle
+      const proj = this.projectiles.find(p => p.sprite === rect)
+      if (proj) proj.destroy()
+    })
+
     // Spawn lore items
     this.spawnLore(lore)
 
@@ -185,7 +194,9 @@ export class GameScene extends Phaser.Scene {
     const result = this.weaponSystem.tryFire(input, px, py, aimX, aimY)
     if (!result) return
 
-    this.projectiles.push(new Projectile(this, result))
+    const proj = new Projectile(this, result)
+    this.projectiles.push(proj)
+    this.projectileGroup.add(proj.sprite)
     this.rangedWeaponTimer = 900
     this.showMuzzleFlash(px, py, angle, result.type)
 
@@ -355,7 +366,9 @@ export class GameScene extends Phaser.Scene {
 
   private handleEnemyAttack(evt: EnemyAttackEvent) {
     const dist = Math.sqrt((evt.x - this.player.sprite.x) ** 2 + (evt.y - this.player.sprite.y) ** 2)
-    if (dist <= 80) this.player.takeDamage(evt.damage)
+    if (dist <= 80 && this.hasLineOfSight(evt.x, evt.y, this.player.sprite.x, this.player.sprite.y)) {
+      this.player.takeDamage(evt.damage)
+    }
   }
 
   // Called externally when a ranged weapon fires (gunshot alert radius)
@@ -421,17 +434,19 @@ export class GameScene extends Phaser.Scene {
   // ── Boss methods ─────────────────────────────────────────────────────────────
 
   private registerBossEvents() {
-    // Boss melee attack lands on player if close enough
+    // Boss melee attack lands on player if close enough and no wall in between
     this.events.on('boss-melee', (evt: { damage: number; x: number; y: number }) => {
       const dist = Math.sqrt(
         (evt.x - this.player.sprite.x) ** 2 + (evt.y - this.player.sprite.y) ** 2
       )
-      if (dist <= 80) this.player.takeDamage(evt.damage)
+      if (dist <= 80 && this.hasLineOfSight(evt.x, evt.y, this.player.sprite.x, this.player.sprite.y)) {
+        this.player.takeDamage(evt.damage)
+      }
     })
 
     // Boss fires a spear projectile — spawn it as a Projectile
     this.events.on('boss-fire', (evt: { x: number; y: number; dirX: number; dirY: number; damage: number }) => {
-      this.projectiles.push(new Projectile(this, {
+      const bossProj = new Projectile(this, {
         type: 'musket',
         x: evt.x, y: evt.y,
         dirX: evt.dirX, dirY: evt.dirY,
@@ -439,7 +454,9 @@ export class GameScene extends Phaser.Scene {
         speed: 500, maxRange: 400,
         isGunshot: false,
         owner: 'boss',
-      }))
+      })
+      this.projectiles.push(bossProj)
+      this.projectileGroup.add(bossProj.sprite)
     })
 
     // Phase 3: boss spawns 2 soldier reinforcements near its current position
@@ -474,6 +491,46 @@ export class GameScene extends Phaser.Scene {
       this.showPhaseNotification(labels[evt.phase] ?? '', colors[evt.phase] ?? '#ff4444')
       this.updateBossHUD()
     })
+  }
+
+  private hasLineOfSight(x1: number, y1: number, x2: number, y2: number): boolean {
+    const bodies = this.wallGroup.getChildren() as Phaser.GameObjects.GameObject[]
+    for (const child of bodies) {
+      const body = (child as Phaser.GameObjects.GameObject & { body: Phaser.Physics.Arcade.StaticBody }).body
+      if (!body) continue
+      const { left, right, top, bottom } = body
+      if (this.segmentIntersectsRect(x1, y1, x2, y2, left, top, right, bottom)) return false
+    }
+    return true
+  }
+
+  private segmentIntersectsRect(
+    x1: number, y1: number, x2: number, y2: number,
+    rLeft: number, rTop: number, rRight: number, rBottom: number,
+  ): boolean {
+    const edges: [number, number, number, number][] = [
+      [rLeft, rTop, rRight, rTop],
+      [rRight, rTop, rRight, rBottom],
+      [rRight, rBottom, rLeft, rBottom],
+      [rLeft, rBottom, rLeft, rTop],
+    ]
+    for (const [ex1, ey1, ex2, ey2] of edges) {
+      if (this.segmentsIntersect(x1, y1, x2, y2, ex1, ey1, ex2, ey2)) return true
+    }
+    return false
+  }
+
+  private segmentsIntersect(
+    ax: number, ay: number, bx: number, by: number,
+    cx: number, cy: number, dx: number, dy: number,
+  ): boolean {
+    const d1x = bx - ax, d1y = by - ay
+    const d2x = dx - cx, d2y = dy - cy
+    const cross = d1x * d2y - d1y * d2x
+    if (Math.abs(cross) < 1e-10) return false
+    const t = ((cx - ax) * d2y - (cy - ay) * d2x) / cross
+    const u = ((cx - ax) * d1y - (cy - ay) * d1x) / cross
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1
   }
 
   private handleBossProjectileHits(_delta: number) {
