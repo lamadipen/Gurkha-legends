@@ -657,10 +657,284 @@ function generateEnemyTexture(scene: Phaser.Scene, type: EnemyType) {
   A.create({ key: `${type}_attack`,    frames: A.generateFrameNumbers(key, { start: 12, end: 12 }), frameRate: 1, repeat: -1 })
 }
 
+// ─── Boss: British EIC Commander (~1814) ──────────────────────────────────────
+// 40×40 px frames — larger than regular 32×32 enemies
+// Palette: red coat, gold epaulettes, tall shako hat, white cross-belt, saber
+
+const FBW = 40   // boss frame width
+const FBH = 40
+
+const BC = {
+  skin:    '#d4a068',   // pale European skin
+  skinDk:  '#a07848',
+  coat:    '#c82020',   // bright red British coat
+  coatL:   '#e83434',
+  coatD:   '#8a1010',
+  gold:    '#c89010',   // gold trim / epaulettes
+  goldL:   '#e8b828',
+  belt:    '#e8e8d4',   // white cross-belt
+  trous:   '#181838',   // dark navy trousers
+  trosDk:  '#0e0e26',
+  boot:    '#100808',
+  hat:     '#0c0c1c',   // tall black shako hat
+  hatRim:  '#18182e',
+  plume:   '#e0e0e0',   // white feather plume
+  blade:   '#c8c060',   // saber blade
+  bladeHi: '#f0e880',
+  hilt:    '#c89010',   // gold guard
+}
+
+const BOSS_LEG_PHASES = [
+  [12, 26, 9,  22, 26, 9],   // 0 neutral-A
+  [12, 28, 7,  22, 23, 11],  // 1 right fwd
+  [12, 25, 10, 22, 25, 10],  // 2 neutral-B (bob peak)
+  [12, 23, 11, 22, 28, 7],   // 3 left fwd
+] as const
+
+function drawBossLegs(ctx: Ctx, ox: number, phase: number, bob: number) {
+  const [lx, ly, lh, rx, ry, rh] = BOSS_LEG_PHASES[phase]
+  fr(ctx, BC.trous,  ox+lx,   ly+bob,      6, lh)
+  fr(ctx, BC.trosDk, ox+lx,   ly+bob,      2, lh)
+  fr(ctx, BC.boot,   ox+lx-1, ly+lh+bob-2, 7, 4)
+  fr(ctx, BC.trous,  ox+rx,   ry+bob,      6, rh)
+  fr(ctx, BC.trosDk, ox+rx+4, ry+bob,      2, rh)
+  fr(ctx, BC.boot,   ox+rx-1, ry+rh+bob-2, 7, 4)
+}
+
+function drawBossHat(ctx: Ctx, ox: number, bob: number, hatCx = 20) {
+  // Tall shako body
+  fr(ctx, BC.hat,    ox+hatCx-8, 1+bob, 16, 11)
+  fr(ctx, BC.hatRim, ox+hatCx-9, 1+bob, 18,  2)   // top rim (wider)
+  // Gold hat band
+  fr(ctx, BC.gold,   ox+hatCx-9, 11+bob, 18, 2)
+  // Front badge / plate
+  fr(ctx, BC.gold,   ox+hatCx-3, 3+bob, 6, 5)
+  fr(ctx, BC.goldL,  ox+hatCx-1, 4+bob, 2, 2)     // badge shine
+  // White plume top-centre
+  fc(ctx, BC.plume,  ox+hatCx, 1.5+bob, 3)
+  fc(ctx, '#f8f8f8', ox+hatCx, 1+bob,   2)
+}
+
+function drawBossHead(ctx: Ctx, ox: number, bob: number, face = true) {
+  fc(ctx, BC.skinDk, ox+20, 15+bob, 7.5)
+  fc(ctx, BC.skin,   ox+20, 14+bob, 7)
+  if (face) {
+    fr(ctx, '#201000', ox+15, 14+bob, 3, 2.5)   // left eye
+    fr(ctx, '#201000', ox+22, 14+bob, 3, 2.5)   // right eye
+    fr(ctx, '#503828', ox+15, 18+bob, 10, 1.5)  // thick mustache
+    fr(ctx, BC.skinDk, ox+17, 20+bob, 6, 1.5)   // chin
+  }
+}
+
+function drawBossDown(ctx: Ctx, ox: number, phase: number, breath = 0) {
+  const bob = phase === 2 ? -1 : breath
+
+  // Shadow
+  ctx.save(); ctx.globalAlpha = 0.18; ctx.fillStyle = '#000'
+  ctx.beginPath(); ctx.ellipse(ox+20, 38, 13, 3, 0, 0, Math.PI*2); ctx.fill()
+  ctx.restore()
+
+  drawBossLegs(ctx, ox, phase, bob)
+
+  // Coat tails (below belt)
+  fr(ctx, BC.coatD, ox+10, 24+bob, 20, 5)
+  fr(ctx, BC.coat,  ox+11, 24+bob, 18, 4)
+
+  // Arm swing
+  const sw = ARM_SWING[phase] * 2
+  // Left arm
+  fr(ctx, BC.coatD, ox+4, 14-sw+bob, 6, 11)
+  fr(ctx, BC.coat,  ox+5, 14-sw+bob, 5, 11)
+  fr(ctx, BC.belt,  ox+5, 24-sw+bob, 5, 2)        // white cuff
+  fc(ctx, BC.skin,  ox+7.5, 28-sw+bob, 3)          // hand
+
+  // Right arm (sword hand)
+  fr(ctx, BC.coatD, ox+30, 14+sw+bob, 6, 11)
+  fr(ctx, BC.coat,  ox+30, 14+sw+bob, 5, 11)
+  fr(ctx, BC.belt,  ox+30, 24+sw+bob, 5, 2)        // white cuff
+  fc(ctx, BC.skin,  ox+32.5, 28+sw+bob, 3)          // hand
+  // Saber hanging from right hand
+  fr(ctx, BC.hilt,  ox+34, 26+sw+bob, 4, 3)
+  fr(ctx, BC.blade, ox+35, 29+sw+bob, 2, 9)
+  fr(ctx, BC.bladeHi, ox+35, 29+sw+bob, 1, 7)
+
+  // Torso — red coat
+  fr(ctx, BC.coatD, ox+10, 13+bob, 20, 13)
+  fr(ctx, BC.coat,  ox+11, 12+bob, 18, 12)
+  fr(ctx, BC.coatL, ox+12, 12+bob, 16, 5)           // upper highlight
+
+  // Gold epaulettes (shoulder pads — key detail!)
+  fr(ctx, BC.gold,  ox+6, 13+bob, 7, 4)             // left epaulette
+  fr(ctx, BC.goldL, ox+7, 13+bob, 5, 2)
+  for (let i = 0; i < 4; i++) fr(ctx, BC.gold, ox+7+i, 17+bob, 1, 3) // fringe
+  fr(ctx, BC.gold,  ox+27, 13+bob, 7, 4)            // right epaulette
+  fr(ctx, BC.goldL, ox+28, 13+bob, 5, 2)
+  for (let i = 0; i < 4; i++) fr(ctx, BC.gold, ox+28+i, 17+bob, 1, 3) // fringe
+
+  // White cross-belt
+  fr(ctx, BC.belt, ox+18, 12+bob, 3, 14)            // vertical
+  fr(ctx, BC.belt, ox+11, 12+bob, 12, 2)            // horizontal across chest
+
+  // Gold buttons down centre
+  fc(ctx, BC.goldL, ox+19.5, 16+bob, 1.5)
+  fc(ctx, BC.goldL, ox+19.5, 20+bob, 1.5)
+  fc(ctx, BC.goldL, ox+19.5, 24+bob, 1.5)
+
+  drawBossHead(ctx, ox, bob, true)
+  drawBossHat(ctx, ox, bob)
+}
+
+function drawBossLeft(ctx: Ctx, ox: number, phase: number) {
+  const bob = phase === 2 ? -1 : 0
+
+  ctx.save(); ctx.globalAlpha = 0.18; ctx.fillStyle = '#000'
+  ctx.beginPath(); ctx.ellipse(ox+18, 38, 11, 2.5, 0, 0, Math.PI*2); ctx.fill()
+  ctx.restore()
+
+  // Back leg
+  const bly = [26, 28, 25, 23] as const
+  fr(ctx, BC.trosDk, ox+19, bly[phase]+bob, 5, 10)
+  fr(ctx, BC.boot,   ox+18, bly[phase]+bob+8, 6, 4)
+
+  // Coat tail (side view)
+  fr(ctx, BC.coatD, ox+9,  24+bob, 16, 5)
+  fr(ctx, BC.coat,  ox+10, 24+bob, 14, 4)
+
+  // Back arm (trailing)
+  fr(ctx, BC.coatD, ox+19, 14+bob, 5, 10)
+
+  // Torso (side profile)
+  fr(ctx, BC.coatD, ox+9,  13+bob, 17, 13)
+  fr(ctx, BC.coat,  ox+10, 12+bob, 15, 12)
+  fr(ctx, BC.coatL, ox+10, 12+bob, 15, 5)
+
+  // Epaulette (near shoulder, side view)
+  fr(ctx, BC.gold,  ox+10, 13+bob, 5, 3)
+  fr(ctx, BC.goldL, ox+11, 13+bob, 4, 2)
+
+  // Cross-belt visible from side
+  fr(ctx, BC.belt, ox+14, 12+bob, 3, 13)
+
+  // Front leg
+  const fly = [26, 22, 25, 28] as const
+  const flh = [10,  13, 11,  8] as const
+  fr(ctx, BC.trous, ox+11, fly[phase]+bob, 5, flh[phase])
+  fr(ctx, BC.boot,  ox+10, fly[phase]+flh[phase]+bob-2, 7, 4)
+
+  // Front arm (side view)
+  const asw = [0, 2, 0, -2] as const
+  fr(ctx, BC.coatD, ox+4, 14+asw[phase]+bob, 6, 10)
+  fr(ctx, BC.coat,  ox+5, 14+asw[phase]+bob, 5, 10)
+  fr(ctx, BC.belt,  ox+5, 23+asw[phase]+bob, 5, 2)
+  fc(ctx, BC.skin,  ox+7, 27+asw[phase]+bob, 3)
+  // Saber at side
+  fr(ctx, BC.hilt,  ox+4, 26+asw[phase]+bob, 3, 3)
+  fr(ctx, BC.blade, ox+3, 29+asw[phase]+bob, 2, 8)
+
+  // Head — side profile
+  fc(ctx, BC.skinDk, ox+17, 15+bob, 7)
+  fc(ctx, BC.skin,   ox+16, 14+bob, 6.5)
+  fr(ctx, '#201000', ox+10, 14+bob, 2, 2.5)         // eye
+  fr(ctx, '#503828', ox+10, 18+bob, 5, 1.5)         // mustache (side)
+  fr(ctx, BC.skinDk, ox+10, 20+bob, 4, 1)           // chin
+
+  // Shako hat (side profile — tall rectangle)
+  fr(ctx, BC.hat,    ox+10, 1+bob, 14, 11)
+  fr(ctx, BC.hatRim, ox+9,  1+bob, 16, 2)
+  fr(ctx, BC.gold,   ox+9,  11+bob, 16, 2)          // gold band
+  // Plume visible at front
+  fc(ctx, BC.plume,  ox+22, 2+bob, 2.5)
+}
+
+function drawBossAttack(ctx: Ctx, ox: number) {
+  // Saber raised high — dramatic overhead swing
+  ctx.save(); ctx.globalAlpha = 0.18; ctx.fillStyle = '#000'
+  ctx.beginPath(); ctx.ellipse(ox+20, 38, 13, 3, 0, 0, Math.PI*2); ctx.fill()
+  ctx.restore()
+
+  // Legs (planted)
+  fr(ctx, BC.trous,  ox+12, 26, 7, 10); fr(ctx, BC.boot, ox+11, 35, 8, 4)
+  fr(ctx, BC.trous,  ox+21, 26, 7, 10); fr(ctx, BC.boot, ox+20, 35, 8, 4)
+
+  // Coat tails
+  fr(ctx, BC.coatD, ox+10, 24, 20, 5); fr(ctx, BC.coat, ox+11, 24, 18, 4)
+
+  // Left arm guarding
+  fr(ctx, BC.coatD, ox+4, 14, 6, 11); fr(ctx, BC.coat, ox+5, 14, 5, 11)
+  fr(ctx, BC.belt,  ox+5, 24, 5, 2)
+  fc(ctx, BC.skin,  ox+7.5, 28, 3)
+
+  // Right arm raised (holding saber overhead)
+  fr(ctx, BC.coatD, ox+27, 4, 6, 15); fr(ctx, BC.coat, ox+28, 4, 5, 15)
+  fr(ctx, BC.belt,  ox+28, 18, 5, 2)
+  fc(ctx, BC.skin,  ox+30.5, 6, 3)
+  // Saber above head — prominent!
+  fr(ctx, BC.hilt,  ox+29, 3, 5, 4)                 // crossguard
+  fr(ctx, BC.blade, ox+30, 0, 3, 5)                  // blade tip pointing up
+  fr(ctx, BC.bladeHi, ox+30, 0, 1, 4)
+  // Saber flash glow
+  ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#ffffcc'
+  ctx.beginPath(); ctx.arc(ox+31, 2, 5, 0, Math.PI*2); ctx.fill(); ctx.restore()
+
+  // Torso
+  fr(ctx, BC.coatD, ox+10, 13, 20, 13); fr(ctx, BC.coat, ox+11, 12, 18, 12)
+  fr(ctx, BC.coatL, ox+12, 12, 16, 5)
+  // Epaulettes
+  fr(ctx, BC.gold, ox+6, 13, 7, 4); for (let i = 0; i < 4; i++) fr(ctx, BC.gold, ox+7+i, 17, 1, 3)
+  fr(ctx, BC.gold, ox+27, 13, 7, 4); for (let i = 0; i < 4; i++) fr(ctx, BC.gold, ox+28+i, 17, 1, 3)
+  // Cross-belt
+  fr(ctx, BC.belt, ox+18, 12, 3, 14); fr(ctx, BC.belt, ox+11, 12, 12, 2)
+
+  drawBossHead(ctx, ox, 0, true)
+  drawBossHat(ctx, ox, 0)
+
+  // Attack arc trail
+  ctx.save(); ctx.globalAlpha = 0.55; ctx.strokeStyle = '#ffee88'; ctx.lineWidth = 3
+  ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(ox+31, 3); ctx.quadraticCurveTo(ox+38, 15, ox+32, 28); ctx.stroke()
+  ctx.globalAlpha = 0.30; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5
+  ctx.beginPath(); ctx.moveTo(ox+31, 3); ctx.quadraticCurveTo(ox+37, 15, ox+31, 28); ctx.stroke()
+  ctx.restore()
+}
+
+function generateBossTexture(scene: Phaser.Scene) {
+  const key = 'boss_commander'
+  if (scene.textures.exists(key)) return
+
+  const canvas = document.createElement('canvas')
+  canvas.width  = FBW * 13
+  canvas.height = FBH
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingEnabled = false
+
+  // 0-1: idle_down
+  drawBossDown(ctx, 0*FBW, 0, 0)
+  drawBossDown(ctx, 1*FBW, 0, -1)
+  // 2-5: walk_down
+  for (let p = 0; p < 4; p++) drawBossDown(ctx, (2+p)*FBW, p)
+  // 6-7: idle_left
+  drawBossLeft(ctx, 6*FBW, 0)
+  drawBossLeft(ctx, 7*FBW, 2)
+  // 8-11: walk_left
+  for (let p = 0; p < 4; p++) drawBossLeft(ctx, (8+p)*FBW, p)
+  // 12: attack
+  drawBossAttack(ctx, 12*FBW)
+
+  scene.textures.addSpriteSheet(key, canvas as unknown as HTMLImageElement, { frameWidth: FBW, frameHeight: FBH })
+
+  const A = scene.anims
+  A.create({ key: 'boss_idle_down', frames: A.generateFrameNumbers(key, { start: 0,  end: 1  }), frameRate: 2,  repeat: -1 })
+  A.create({ key: 'boss_walk_down', frames: A.generateFrameNumbers(key, { start: 2,  end: 5  }), frameRate: 8,  repeat: -1 })
+  A.create({ key: 'boss_idle_left', frames: A.generateFrameNumbers(key, { start: 6,  end: 7  }), frameRate: 2,  repeat: -1 })
+  A.create({ key: 'boss_walk_left', frames: A.generateFrameNumbers(key, { start: 8,  end: 11 }), frameRate: 8,  repeat: -1 })
+  A.create({ key: 'boss_attack',    frames: A.generateFrameNumbers(key, { start: 12, end: 12 }), frameRate: 1,  repeat:  0 })
+}
+
 // ─── Public entry point ────────────────────────────────────────────────────────
 
 export function generateCharacterTextures(scene: Phaser.Scene) {
   generatePlayerTexture(scene)
   const types: EnemyType[] = ['soldier', 'archer', 'heavy', 'rifleman', 'commander']
   for (const t of types) generateEnemyTexture(scene, t)
+  generateBossTexture(scene)
 }
