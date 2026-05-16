@@ -2,6 +2,8 @@
 export const PLAYER_SPEED              = 200
 export const PLAYER_SPRINT_SPEED       = 320
 export const PLAYER_MAX_HP             = 100
+export const HEALTH_PICKUP_AMOUNT      = 30   // HP restored per pickup
+export const HEALTH_PICKUP_RADIUS      = 20   // pick-up trigger distance
 export const PLAYER_MAX_STAMINA        = 100
 export const PLAYER_STAMINA_REGEN      = 18
 export const PLAYER_DODGE_DURATION     = 300

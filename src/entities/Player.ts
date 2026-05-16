@@ -166,6 +166,12 @@ export class Player {
     }
   }
 
+  heal(amount: number) {
+    this._hp = Math.min(PLAYER_MAX_HP, this._hp + amount)
+    this.sprite.setTint(0x44ff88)
+    this.scene.time.delayedCall(120, () => this.sprite.clearTint())
+  }
+
   takeDamage(amount: number) {
     if (this.dodging) return
     this._hp = Math.max(0, this._hp - amount)

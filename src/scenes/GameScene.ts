@@ -19,6 +19,7 @@ import {
   PLAYER_MAX_HP, PLAYER_MAX_STAMINA,
   SOUND_MELEE_RADIUS, SOUND_STEALTH_KILL_RADIUS,
   KHUKURI_STEALTH_RANGE, SCORE_BONUS_ALL_LORE, SOUND_GUNSHOT_RADIUS,
+  HEALTH_PICKUP_AMOUNT, HEALTH_PICKUP_RADIUS,
 } from '../config/balance'
 
 interface AttackEvent {
@@ -45,6 +46,7 @@ export class GameScene extends Phaser.Scene {
   private enemyGroup!: Phaser.Physics.Arcade.Group
   private boss: Boss | null = null
   private loreItems: LoreItem[] = []
+  private healthPickups: { gfx: Phaser.GameObjects.Graphics; x: number; y: number }[] = []
   private projectiles: Projectile[] = []
   private projectileGroup!: Phaser.Physics.Arcade.Group
   private loreGroup!: Phaser.Physics.Arcade.Group
@@ -66,6 +68,7 @@ export class GameScene extends Phaser.Scene {
   private enemyCountText!: Phaser.GameObjects.Text
   private loreText!: Phaser.GameObjects.Text
   private weaponText!: Phaser.GameObjects.Text
+  private hpText!: Phaser.GameObjects.Text
   private pauseOverlay!: Phaser.GameObjects.Container
   private rangedWeaponGfx!: Phaser.GameObjects.Graphics
   private rangedWeaponTimer = 0
@@ -83,6 +86,7 @@ export class GameScene extends Phaser.Scene {
     this.rangedWeaponTimer = 0
     this.enemies = []
     this.loreItems = []
+    this.healthPickups = []
     this.projectiles = []
     this.boss = null
     this.bossHpBar = null
@@ -131,6 +135,9 @@ export class GameScene extends Phaser.Scene {
     // Spawn lore items
     this.spawnLore(lore)
 
+    // Spawn health pickups spread across the map
+    this.spawnHealthPickups(mapDef.width, mapDef.height)
+
     // Spawn boss if this map has one
     if (bossDef) {
       this.boss = new Boss(this, bossDef.x, bossDef.y, this.era)
@@ -173,6 +180,7 @@ export class GameScene extends Phaser.Scene {
     this.updateProjectiles(delta)
     this.rangedWeaponTimer = Math.max(0, this.rangedWeaponTimer - delta)
     this.updateRangedWeaponVisual()
+    this.updateHealthPickups()
 
     this.updateHUD()
 
@@ -401,6 +409,67 @@ export class GameScene extends Phaser.Scene {
         this.showLoreNotification(item.title)
       },
     )
+  }
+
+  private spawnHealthPickups(mapWidth: number, mapHeight: number) {
+    // Place 5 health packs evenly across the map length
+    const count = 5
+    const padding = 120
+    const yMid = mapHeight / 2
+    for (let i = 0; i < count; i++) {
+      const t = (i + 1) / (count + 1)
+      const x = padding + t * (mapWidth - padding * 2)
+      const y = yMid + (i % 2 === 0 ? -60 : 60)
+      this.createHealthPickup(x, y)
+    }
+  }
+
+  private createHealthPickup(x: number, y: number) {
+    const gfx = this.add.graphics().setDepth(3)
+    this.drawHealthCross(gfx, x, y)
+    this.healthPickups.push({ gfx, x, y })
+
+    this.tweens.add({
+      targets: gfx, alpha: { from: 0.7, to: 1 },
+      duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    })
+  }
+
+  private drawHealthCross(gfx: Phaser.GameObjects.Graphics, x: number, y: number) {
+    gfx.clear()
+    // White backing circle
+    gfx.fillStyle(0xffffff, 0.9)
+    gfx.fillCircle(x, y, 10)
+    // Red cross
+    gfx.fillStyle(0xdd1111, 1)
+    gfx.fillRect(x - 2, y - 7, 4, 14)
+    gfx.fillRect(x - 7, y - 2, 14, 4)
+  }
+
+  private updateHealthPickups() {
+    for (let i = this.healthPickups.length - 1; i >= 0; i--) {
+      const { gfx, x, y } = this.healthPickups[i]
+      const dist = Math.sqrt((x - this.player.sprite.x) ** 2 + (y - this.player.sprite.y) ** 2)
+      if (dist <= HEALTH_PICKUP_RADIUS && this.player.hp < PLAYER_MAX_HP) {
+        this.player.heal(HEALTH_PICKUP_AMOUNT)
+        this.tweens.killTweensOf(gfx)
+        gfx.destroy()
+        this.healthPickups.splice(i, 1)
+        this.showHealNotification()
+      }
+    }
+  }
+
+  private showHealNotification() {
+    const cx = this.scale.width / 2
+    const notif = this.add.text(cx, this.scale.height / 2 - 60, `+${HEALTH_PICKUP_AMOUNT} HP`, {
+      fontSize: '18px', color: '#44ff88', fontStyle: 'bold',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(20)
+    this.tweens.add({
+      targets: notif, alpha: 0, y: notif.y - 30,
+      duration: 1200, ease: 'Quad.easeOut',
+      onComplete: () => notif.destroy(),
+    })
   }
 
   private showLoreNotification(title: string) {
@@ -659,6 +728,9 @@ export class GameScene extends Phaser.Scene {
     hpBg.fillRect(20, hudY, 160, 14)
     this.add.text(20, hudY - 18, 'HP', { fontSize: '12px', color: '#cc3333' }).setScrollFactor(0).setDepth(10)
     this.hpBar = this.add.graphics().setScrollFactor(0).setDepth(11)
+    this.hpText = this.add.text(100, hudY - 1, `${PLAYER_MAX_HP}/${PLAYER_MAX_HP}`, {
+      fontSize: '10px', color: '#ffffff',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(12)
 
     const staBg = this.add.graphics().setScrollFactor(0).setDepth(10)
     staBg.fillStyle(0x002200)
@@ -732,9 +804,13 @@ export class GameScene extends Phaser.Scene {
   private updateHUD() {
     const hudY = this.scale.height - 60
 
+    const hpPct = this.player.hp / PLAYER_MAX_HP
+    const hpColor = hpPct > 0.6 ? 0x44cc44 : hpPct > 0.3 ? 0xddaa22 : 0xcc2222
     this.hpBar.clear()
-    this.hpBar.fillStyle(0xcc3333)
-    this.hpBar.fillRect(20, hudY, 160 * (this.player.hp / PLAYER_MAX_HP), 14)
+    this.hpBar.fillStyle(hpColor)
+    this.hpBar.fillRect(20, hudY, 160 * hpPct, 14)
+    this.hpText.setText(`${this.player.hp}/${PLAYER_MAX_HP}`)
+    this.hpText.setColor(hpPct > 0.3 ? '#ffffff' : '#ffaaaa')
 
     this.staminaBar.clear()
     this.staminaBar.fillStyle(0x33cc33)
