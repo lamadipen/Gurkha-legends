@@ -10,6 +10,7 @@ interface ProjectileConfig {
   maxRange: number
   isGunshot: boolean
   type: ProjectileType
+  owner?: 'player' | 'boss'
 }
 
 const VISUALS: Record<ProjectileType, { color: number; w: number; h: number }> = {
@@ -25,6 +26,7 @@ export class Projectile {
   readonly damage: number
   readonly isGunshot: boolean
   readonly type: ProjectileType
+  readonly owner: 'player' | 'boss'
 
   private traveled = 0
   private readonly maxRange: number
@@ -35,6 +37,7 @@ export class Projectile {
     this.isGunshot = cfg.isGunshot
     this.maxRange = cfg.maxRange
     this.type = cfg.type
+    this.owner = cfg.owner ?? 'player'
 
     const v = VISUALS[cfg.type]
     this.sprite = scene.add.rectangle(cfg.x, cfg.y, v.w, v.h, v.color)

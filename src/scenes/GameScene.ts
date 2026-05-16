@@ -432,12 +432,13 @@ export class GameScene extends Phaser.Scene {
     // Boss fires a spear projectile — spawn it as a Projectile
     this.events.on('boss-fire', (evt: { x: number; y: number; dirX: number; dirY: number; damage: number }) => {
       this.projectiles.push(new Projectile(this, {
-        type: 'musket',       // reuse musket visual for spear-ish look
+        type: 'musket',
         x: evt.x, y: evt.y,
         dirX: evt.dirX, dirY: evt.dirY,
         damage: evt.damage,
         speed: 500, maxRange: 400,
         isGunshot: false,
+        owner: 'boss',
       }))
     })
 
@@ -476,10 +477,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleBossProjectileHits(_delta: number) {
-    // Boss projectiles are already in this.projectiles — they hit the player in updateProjectiles
-    // (boss-fire projectiles are added to same pool; overlap with player handled here)
     for (const proj of this.projectiles) {
-      if (!proj.alive) continue
+      if (!proj.alive || proj.owner !== 'boss') continue
       const dist = Math.sqrt(
         (proj.x - this.player.sprite.x) ** 2 + (proj.y - this.player.sprite.y) ** 2
       )
