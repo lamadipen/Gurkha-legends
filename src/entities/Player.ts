@@ -55,7 +55,7 @@ export class Player {
     this.physBody.setMaxVelocity(PLAYER_SPRINT_SPEED, PLAYER_SPRINT_SPEED)
     this.physBody.setSize(18, 18)
 
-    this.khukuriGfx = scene.add.graphics().setDepth(7)
+    this.khukuriGfx = scene.add.graphics()
 
     this.sprite.on('animationcomplete', (anim: Phaser.Animations.Animation) => {
       if (anim.key === 'player_attack_down' || anim.key === 'player_attack_side') this.attacking = false
@@ -132,6 +132,8 @@ export class Player {
     if (input.lightAttack) this.doLightAttack()
 
     this.sta.update(delta, sprinting || this.dodging)
+    this.sprite.setDepth(this.sprite.y)
+    this.khukuriGfx.setDepth(this.sprite.y + 1)
     this.updateAnimation(moving)
     this.drawKhukuri()
 

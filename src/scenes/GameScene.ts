@@ -42,6 +42,7 @@ export class GameScene extends Phaser.Scene {
   private weaponSystem!: WeaponSystem
   private masterySystem!: WeaponMasterySystem
   private enemies: Enemy[] = []
+  private enemyGroup!: Phaser.Physics.Arcade.Group
   private boss: Boss | null = null
   private loreItems: LoreItem[] = []
   private projectiles: Projectile[] = []
@@ -105,11 +106,18 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.player.sprite, this.wallGroup)
 
     // Spawn enemies from map definition
+    this.enemyGroup = this.physics.add.group()
     for (const def of spawns) {
       const enemy = new Enemy(this, def.x, def.y, def.type, def.patrolEnd)
       this.physics.add.collider(enemy.sprite, this.wallGroup)
+      this.enemyGroup.add(enemy.sprite)
       this.enemies.push(enemy)
     }
+
+    // Player ↔ enemy solid collision — they push each other, can't overlap
+    this.physics.add.collider(this.player.sprite, this.enemyGroup)
+    // Enemy ↔ enemy — they spread out, don't stack
+    this.physics.add.collider(this.enemyGroup, this.enemyGroup)
 
     // Spawn lore items
     this.spawnLore(lore)

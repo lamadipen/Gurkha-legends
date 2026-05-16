@@ -149,6 +149,7 @@ export class Enemy {
 
     this.indicator.setPosition(this.sprite.x, this.sprite.y - 22)
     this.indicator.setText(this._state === 'alert' ? '!' : this._state === 'combat' ? '!!' : '')
+    this.sprite.setDepth(this.sprite.y)
     this.updateAnim()
   }
 
