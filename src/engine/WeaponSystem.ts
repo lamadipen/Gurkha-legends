@@ -56,25 +56,21 @@ export class WeaponSystem {
     px: number, py: number,
     aimDirX: number, aimDirY: number,
   ): FireResult | null {
-    if (input.knife) {
-      if (this.hasKnife && this.knifeAmmo > 0) {
-        this.knifeAmmo--
-        return {
-          type: 'knife', x: px, y: py,
-          dirX: aimDirX, dirY: aimDirY,
-          damage: KNIFE_DAMAGE,
-          speed: KNIFE_SPEED, maxRange: KNIFE_RANGE,
-          isGunshot: false,
-        }
-      }
-      // Era 1: X fires musket
-      if (!this.hasKnife && this.hasHeavy && this.heavyReloadMs <= 0) {
-        return this.fireHeavy(px, py, aimDirX, aimDirY)
-      }
+    // X always fires the ranged weapon (musket / rifle depending on era)
+    if (input.knife && this.hasHeavy && this.heavyReloadMs <= 0) {
+      return this.fireHeavy(px, py, aimDirX, aimDirY)
     }
 
-    if (input.shieldBash && this.hasHeavy && this.heavyReloadMs <= 0 && this.era >= 2) {
-      return this.fireHeavy(px, py, aimDirX, aimDirY)
+    // C throws knife (Era 2/3)
+    if (input.shieldBash && this.hasKnife && this.knifeAmmo > 0) {
+      this.knifeAmmo--
+      return {
+        type: 'knife', x: px, y: py,
+        dirX: aimDirX, dirY: aimDirY,
+        damage: KNIFE_DAMAGE,
+        speed: KNIFE_SPEED, maxRange: KNIFE_RANGE,
+        isGunshot: false,
+      }
     }
 
     return null
