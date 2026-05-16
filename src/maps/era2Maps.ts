@@ -443,7 +443,7 @@ export const ERA2_M4: MapDef = {
     { x: 1620, y: 420, id: 'e2m4_lore3', title: 'The Honourable Surrender' },
   ] satisfies LoreDef[],
 
-  boss: { x: 1720, y: 520 },
+  boss: { x: 1800, y: 520 },
 }
 
 export const ERA2_MAPS: Record<number, MapDef> = {

@@ -464,7 +464,7 @@ export const ERA1_M4: MapDef = {
     { x: 1610, y: 450, id: 'e1m4_lore3', title: "Commander's Codex" },
   ] satisfies LoreDef[],
 
-  boss: { x: 1640, y: 540 },
+  boss: { x: 1750, y: 500 },
 }
 
 export const ERA1_MAPS: Record<number, MapDef> = {
