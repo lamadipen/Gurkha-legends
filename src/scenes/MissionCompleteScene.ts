@@ -36,10 +36,13 @@ export class MissionCompleteScene extends Phaser.Scene {
 
     const stealthRatio = r.kills > 0 ? r.stealthKills / r.kills : 0
 
-    // Auto-save progress
+    // Auto-save progress — advance era when completing the last mission
+    const isLastMission = this.mission >= 4
+    const saveEra = (isLastMission ? Math.min(this.era + 1, 3) : this.era) as EraNumber
+    const saveMission = (isLastMission ? 1 : this.mission + 1) as MissionNumber
     saveGame(0, {
-      currentEra: this.era,
-      currentMission: Math.min(this.mission + 1, 4) as MissionNumber,
+      currentEra: saveEra,
+      currentMission: saveMission,
       weaponMastery: { khukuri: 0, knife: 0, musket: 0, rifle: 0, grenade: 0 },
       loreCollected: [],
       totalKills: r.kills,
