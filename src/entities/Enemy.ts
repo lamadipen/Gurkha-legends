@@ -50,6 +50,7 @@ export class Enemy {
   private deaggroTimer = 0
   private attackCooldown = 0
   private investigatePos: { x: number; y: number } | null = null
+  private staggerTimer = 0
 
   // Animation tracking
   private currentAnimKey = ''
@@ -91,6 +92,16 @@ export class Enemy {
 
   update(delta: number, playerX: number, playerY: number, playerDetectionRadius: number) {
     if (this._state === 'dead') return
+
+    // Stagger — freeze movement briefly after being hit
+    if (this.staggerTimer > 0) {
+      this.staggerTimer = Math.max(0, this.staggerTimer - delta)
+      this.physBody.setVelocity(0, 0)
+      this.indicator.setPosition(this.sprite.x, this.sprite.y - 22)
+      this.sprite.setDepth(this.sprite.y)
+      this.updateAnim()
+      return
+    }
 
     this.attackCooldown = Math.max(0, this.attackCooldown - delta)
 
@@ -178,7 +189,7 @@ export class Enemy {
   }
 
   // Returns true if the enemy died
-  takeDamage(amount: number, instantKill = false): boolean {
+  takeDamage(amount: number, instantKill = false, attackX?: number, attackY?: number): boolean {
     if (this._state === 'dead') return false
     this._hp = instantKill ? 0 : Math.max(0, this._hp - amount)
     if (this._hp <= 0) { this.die(); return true }
@@ -187,8 +198,26 @@ export class Enemy {
     this.scene.time.delayedCall(80, () => {
       if (!this.isDead) this.sprite.clearTint()
     })
+
+    // Knockback — push enemy away from attacker
+    if (attackX !== undefined && attackY !== undefined) {
+      const ddx = this.sprite.x - attackX
+      const ddy = this.sprite.y - attackY
+      const len = Math.sqrt(ddx * ddx + ddy * ddy)
+      if (len > 0) {
+        this.physBody.setVelocity((ddx / len) * 220, (ddy / len) * 220)
+        this.staggerTimer = 180
+      }
+    }
+
     if (this._state !== 'combat') this.enterCombat()
     return false
+  }
+
+  // Apply a stagger (externally, e.g. from shield bash)
+  stagger(duration: number) {
+    this.staggerTimer = duration
+    this.physBody.setVelocity(0, 0)
   }
 
   // Called by GameScene when a nearby sound event occurs
@@ -264,9 +293,16 @@ export class Enemy {
     this._state = 'dead'
     this.physBody.setVelocity(0, 0)
     this.physBody.setEnable(false)
-    this.sprite.setTint(0x333333).setAlpha(0.4)
     this.indicator.destroy()
     this.scene.cameras.main.flash(60, 150, 0, 0, false)
+    // Fade to grey corpse over 1.5 seconds
+    this.sprite.setTint(0x555555)
+    this.scene.tweens.add({
+      targets: this.sprite,
+      alpha: 0.25,
+      duration: 1500,
+      ease: 'Quad.easeOut',
+    })
   }
 
   destroy() {

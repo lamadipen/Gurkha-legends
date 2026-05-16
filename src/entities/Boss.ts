@@ -5,6 +5,13 @@ import {
   BOSS_ERA1_P1_SPEED, BOSS_ERA1_P2_SPEED, BOSS_ERA1_P3_SPEED,
   BOSS_ERA1_P1_DAMAGE, BOSS_ERA1_P2_DAMAGE, BOSS_ERA1_P3_DAMAGE,
   BOSS_ERA1_SPEAR_DAMAGE, BOSS_ERA1_CHARGE_DAMAGE, BOSS_ERA1_MELEE_RANGE,
+  BOSS_ERA2_HP, BOSS_ERA2_P1_SPEED, BOSS_ERA2_P2_SPEED, BOSS_ERA2_P3_SPEED,
+  BOSS_ERA2_P1_DAMAGE, BOSS_ERA2_P2_DAMAGE, BOSS_ERA2_P3_DAMAGE,
+  BOSS_ERA2_MUSKET_DAMAGE, BOSS_ERA2_RANGED_COOLDOWN, BOSS_ERA2_REINFORCE_TIMER,
+  BOSS_ERA3_HP, BOSS_ERA3_P1_SPEED, BOSS_ERA3_P2_SPEED, BOSS_ERA3_P3_SPEED,
+  BOSS_ERA3_P1_DAMAGE, BOSS_ERA3_P2_DAMAGE, BOSS_ERA3_P3_DAMAGE,
+  BOSS_ERA3_RIFLE_DAMAGE, BOSS_ERA3_RIFLE_RANGE,
+  BOSS_HELI_STRAFE_INTERVAL, BOSS_HELI_STRAFE_DAMAGE,
 } from '../config/balance'
 import type { EraNumber } from '../types'
 
@@ -32,7 +39,7 @@ export class Boss {
   readonly era: EraNumber
   readonly name: string
 
-  private _hp = BOSS_ERA1_HP
+  private _hp: number
   private _phase: BossPhase = 1
   private _dead = false
 
@@ -45,6 +52,8 @@ export class Boss {
   private chargeRushTimer = 0
   private chargeDir = { x: 1, y: 0 }
   private minionsSpawned = false
+  private reinforceTimer = 0  // Era 2: periodic reinforcement call
+  private strafeTimer = 0     // Era 3: helicopter strafe cooldown
 
   // Animation state
   private animDir: 'down' | 'left' = 'down'
@@ -56,6 +65,8 @@ export class Boss {
     this.scene = scene
     this.era = era
     this.name = BOSS_NAMES[era]
+    this._hp = era === 3 ? BOSS_ERA3_HP : era === 2 ? BOSS_ERA2_HP : BOSS_ERA1_HP
+    this.rangedCooldown = era === 2 ? BOSS_ERA2_RANGED_COOLDOWN : 2500
 
     // Glow ring drawn behind sprite
     this.glow = scene.add.graphics().setDepth(3)
@@ -90,7 +101,7 @@ export class Boss {
   }
 
   get hp()     { return this._hp }
-  get maxHp()  { return BOSS_ERA1_HP }
+  get maxHp()  { return this.era === 3 ? BOSS_ERA3_HP : this.era === 2 ? BOSS_ERA2_HP : BOSS_ERA1_HP }
   get phase()  { return this._phase }
   get isDead() { return this._dead }
   get x()      { return this.sprite.x }
@@ -103,7 +114,6 @@ export class Boss {
     const dy = playerY - this.sprite.y
     const dist = Math.sqrt(dx * dx + dy * dy)
 
-    this.glow.setPosition(this.sprite.x - this.sprite.x, this.sprite.y - this.sprite.y)
     this.drawGlow(this.sprite.x, this.sprite.y,
       this._phase === 3 ? 0xff0000 : this._phase === 2 ? 0xff6600 : 0x882200,
       this._phase === 3 ? 0.4 : 0.25)
@@ -154,11 +164,21 @@ export class Boss {
 
     // ── COMBAT ────────────────────────────────────────────────────────────────
 
+    if (this.era === 1) this.combatEra1(dx, dy, dist, delta)
+    else if (this.era === 2) this.combatEra2(dx, dy, dist, delta)
+    else this.combatEra3(dx, dy, dist, delta)
+
+    this.updateAnim(this.attackAnimTimer <= 0)
+  }
+
+  private combatEra1(dx: number, dy: number, dist: number, _delta: number) {
     const speed = this._phase === 3 ? BOSS_ERA1_P3_SPEED
       : this._phase === 2 ? BOSS_ERA1_P2_SPEED : BOSS_ERA1_P1_SPEED
     const meleeDmg = this._phase === 3 ? BOSS_ERA1_P3_DAMAGE
       : this._phase === 2 ? BOSS_ERA1_P2_DAMAGE : BOSS_ERA1_P1_DAMAGE
     const meleeCd = this._phase === 3 ? 650 : this._phase === 2 ? 950 : 1250
+    const px = this.sprite.x + dx
+    const py = this.sprite.y + dy
 
     if (this._phase === 3 && this.chargeCooldown <= 0) {
       this.state = 'telegraph'
@@ -169,35 +189,118 @@ export class Boss {
       this.scene.cameras.main.shake(200, 0.005)
       return
     }
-
-    this.moveTo(playerX, playerY, speed)
-
+    this.moveTo(px, py, speed)
     if (dist <= BOSS_ERA1_MELEE_RANGE && this.meleeCooldown <= 0) {
       this.meleeCooldown = meleeCd
-      this.scene.events.emit('boss-melee', {
-        damage: meleeDmg, x: this.sprite.x, y: this.sprite.y,
-      })
+      this.scene.events.emit('boss-melee', { damage: meleeDmg, x: this.sprite.x, y: this.sprite.y })
       this.scene.cameras.main.shake(120, 0.008)
       this.triggerAttackAnim()
     }
-
     if (this._phase >= 2 && dist > 100 && this.rangedCooldown <= 0) {
       this.rangedCooldown = 2800
       const rdx = dist > 0 ? dx / dist : 1
       const rdy = dist > 0 ? dy / dist : 0
-      this.scene.events.emit('boss-fire', {
-        x: this.sprite.x, y: this.sprite.y,
-        dirX: rdx, dirY: rdy,
-        damage: BOSS_ERA1_SPEAR_DAMAGE,
-      })
+      this.scene.events.emit('boss-fire', { x: this.sprite.x, y: this.sprite.y, dirX: rdx, dirY: rdy, damage: BOSS_ERA1_SPEAR_DAMAGE })
     }
-
     if (this._phase === 3 && !this.minionsSpawned) {
       this.minionsSpawned = true
       this.scene.events.emit('boss-spawn-minions')
     }
+  }
 
-    this.updateAnim(this.attackAnimTimer <= 0)
+  // Era 2: General Ochterlony — frequent musket fire, calls reinforcements in phase 3
+  private combatEra2(dx: number, dy: number, dist: number, delta: number) {
+    const speed = this._phase === 3 ? BOSS_ERA2_P3_SPEED
+      : this._phase === 2 ? BOSS_ERA2_P2_SPEED : BOSS_ERA2_P1_SPEED
+    const meleeDmg = this._phase === 3 ? BOSS_ERA2_P3_DAMAGE
+      : this._phase === 2 ? BOSS_ERA2_P2_DAMAGE : BOSS_ERA2_P1_DAMAGE
+    const meleeCd = this._phase === 3 ? 700 : this._phase === 2 ? 1000 : 1300
+    const px = this.sprite.x + dx
+    const py = this.sprite.y + dy
+
+    this.moveTo(px, py, speed)
+
+    if (dist <= BOSS_ERA1_MELEE_RANGE && this.meleeCooldown <= 0) {
+      this.meleeCooldown = meleeCd
+      this.scene.events.emit('boss-melee', { damage: meleeDmg, x: this.sprite.x, y: this.sprite.y })
+      this.scene.cameras.main.shake(120, 0.008)
+      this.triggerAttackAnim()
+    }
+
+    // Fires muskets more frequently than Era 1 (available from phase 1)
+    if (dist > 80 && this.rangedCooldown <= 0) {
+      this.rangedCooldown = BOSS_ERA2_RANGED_COOLDOWN
+      const rdx = dist > 0 ? dx / dist : 1
+      const rdy = dist > 0 ? dy / dist : 0
+      this.scene.events.emit('boss-fire', { x: this.sprite.x, y: this.sprite.y, dirX: rdx, dirY: rdy, damage: BOSS_ERA2_MUSKET_DAMAGE })
+    }
+
+    // Phase 3: periodic reinforcement calls
+    if (this._phase === 3) {
+      this.reinforceTimer = Math.max(0, this.reinforceTimer - delta)
+      if (this.reinforceTimer <= 0) {
+        this.reinforceTimer = BOSS_ERA2_REINFORCE_TIMER
+        this.scene.events.emit('boss-spawn-minions')
+      }
+    }
+  }
+
+  // Era 3: Commander Vargas — fast, long-range rifle, phase 3 strafe spread
+  private combatEra3(dx: number, dy: number, dist: number, delta: number) {
+    const speed = this._phase === 3 ? BOSS_ERA3_P3_SPEED
+      : this._phase === 2 ? BOSS_ERA3_P2_SPEED : BOSS_ERA3_P1_SPEED
+    const meleeDmg = this._phase === 3 ? BOSS_ERA3_P3_DAMAGE
+      : this._phase === 2 ? BOSS_ERA3_P2_DAMAGE : BOSS_ERA3_P1_DAMAGE
+    const meleeCd = this._phase === 3 ? 500 : this._phase === 2 ? 750 : 1000
+    const px = this.sprite.x + dx
+    const py = this.sprite.y + dy
+
+    // Keeps a bit more distance — prefer ranged
+    if (dist < 120) {
+      this.moveTo(px, py, -speed * 0.6)  // retreat if too close
+    } else {
+      this.moveTo(px, py, speed)
+    }
+
+    if (dist <= BOSS_ERA1_MELEE_RANGE && this.meleeCooldown <= 0) {
+      this.meleeCooldown = meleeCd
+      this.scene.events.emit('boss-melee', { damage: meleeDmg, x: this.sprite.x, y: this.sprite.y })
+      this.scene.cameras.main.shake(100, 0.006)
+      this.triggerAttackAnim()
+    }
+
+    // Long-range rifle shots from phase 1
+    if (dist > 60 && this.rangedCooldown <= 0) {
+      this.rangedCooldown = 1600
+      const rdx = dist > 0 ? dx / dist : 1
+      const rdy = dist > 0 ? dy / dist : 0
+      this.scene.events.emit('boss-fire', {
+        x: this.sprite.x, y: this.sprite.y, dirX: rdx, dirY: rdy,
+        damage: BOSS_ERA3_RIFLE_DAMAGE, maxRange: BOSS_ERA3_RIFLE_RANGE,
+      })
+    }
+
+    // Phase 3: helicopter strafe — spread shots across y-axis
+    if (this._phase === 3) {
+      this.strafeTimer = Math.max(0, this.strafeTimer - delta)
+      if (this.strafeTimer <= 0) {
+        this.strafeTimer = BOSS_HELI_STRAFE_INTERVAL
+        // Three spread projectiles
+        const spreads = [-80, 0, 80]
+        for (const offset of spreads) {
+          const rdx = dist > 0 ? dx / dist : 1
+          const rdy = dist > 0 ? dy / dist : 0
+          // Slightly spread direction
+          const ang = Math.atan2(rdy, rdx) + (offset / 1200)
+          this.scene.events.emit('boss-fire', {
+            x: this.sprite.x, y: this.sprite.y + offset,
+            dirX: Math.cos(ang), dirY: Math.sin(ang),
+            damage: BOSS_HELI_STRAFE_DAMAGE, maxRange: BOSS_ERA3_RIFLE_RANGE,
+          })
+        }
+        this.scene.cameras.main.shake(250, 0.01)
+      }
+    }
   }
 
   private updateAnim(allowWalkAnim: boolean) {
@@ -244,7 +347,7 @@ export class Boss {
       if (!this._dead) this.sprite.setTint(PHASE_TINTS[this._phase])
     })
 
-    const hpPct = this._hp / BOSS_ERA1_HP
+    const hpPct = this._hp / this.maxHp
     if (this._phase === 1 && hpPct <= BOSS_EIC_PHASE2_HP) this.enterPhase(2)
     else if (this._phase === 2 && hpPct <= BOSS_EIC_PHASE3_HP) this.enterPhase(3)
 

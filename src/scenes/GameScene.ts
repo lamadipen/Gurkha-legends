@@ -22,6 +22,9 @@ import {
   SOUND_MELEE_RADIUS, SOUND_STEALTH_KILL_RADIUS,
   KHUKURI_STEALTH_RANGE, SCORE_BONUS_ALL_LORE, SOUND_GUNSHOT_RADIUS,
   HEALTH_PICKUP_AMOUNT, HEALTH_PICKUP_RADIUS,
+  GRENADE_DAMAGE, GRENADE_RADIUS, GRENADE_FUSE, GRENADE_PER_MISSION,
+  SHIELD_BASH_DAMAGE, SHIELD_BASH_STAGGER, SHIELD_BASH_STAMINA,
+  PAR_TIME_MS,
 } from '../config/balance'
 
 interface AttackEvent {
@@ -75,6 +78,12 @@ export class GameScene extends Phaser.Scene {
   private rangedWeaponTimer = 0
   private paused = false
   private missionComplete = false
+
+  private grenadeCount = 0
+  private grenades: { gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; fuse: number }[] = []
+  private objectiveText!: Phaser.GameObjects.Text
+  private hudComboCount = 0
+  private missionStartTime = 0
 
   constructor() { super('GameScene') }
 
@@ -146,9 +155,12 @@ export class GameScene extends Phaser.Scene {
       this.registerBossEvents()
     }
 
+    if (this.era === 3) this.grenadeCount = GRENADE_PER_MISSION
+
     this.rangedWeaponGfx = this.add.graphics().setDepth(6)
     this.createHUD()
     this.createPauseOverlay()
+    this.missionStartTime = this.time.now
 
     this.cameras.main.startFollow(this.player.sprite, true, 0.1, 0.1)
     this.cameras.main.setZoom(2)
@@ -178,6 +190,9 @@ export class GameScene extends Phaser.Scene {
     // Ranged weapons
     this.weaponSystem.update(delta)
     this.handleRangedFire(input)
+    this.handleShieldBash(input)
+    this.handleGrenadeThrow(input)
+    this.updateGrenades(delta)
     this.updateProjectiles(delta)
     this.rangedWeaponTimer = Math.max(0, this.rangedWeaponTimer - delta)
     this.updateRangedWeaponVisual()
@@ -186,7 +201,10 @@ export class GameScene extends Phaser.Scene {
     this.updateHUD()
 
     if (this.player.isDead) {
-      this.scene.start('GameOverScene', { era: this.era, mission: this.mission, difficulty: this.difficulty })
+      this.scene.start('GameOverScene', {
+        era: this.era, mission: this.mission, difficulty: this.difficulty,
+        score: this.scoreSystem.score, kills: this.scoreSystem.kills,
+      })
       return
     }
 
@@ -336,10 +354,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePlayerAttack(evt: AttackEvent) {
-    const { x, y, damage, range, comboFinish, isStealth } = evt
+    const { x, y, damage, range, comboFinish, isStealth, isCounter, isHeavy } = evt
     const soundRadius = isStealth ? SOUND_STEALTH_KILL_RADIUS : SOUND_MELEE_RADIUS
     const khukuriMult = this.masterySystem.getDamageMultiplier('khukuri')
     const scaledDmg = Math.round(damage * khukuriMult)
+
+    // Combo counter display
+    if (!isCounter && !isHeavy) {
+      if (comboFinish) {
+        this.showComboText(x, y, 'FINISH!', '#ff8822')
+        this.hudComboCount = 0
+      } else {
+        this.hudComboCount = Math.min(this.hudComboCount + 1, 2)
+        this.showComboText(x, y, `${this.hudComboCount}`, '#ffdd44')
+      }
+    } else if (isCounter) {
+      this.showComboText(x, y, 'COUNTER!', '#44eeff')
+      this.hudComboCount = 0
+    } else if (isHeavy) {
+      this.showComboText(x, y, 'HEAVY!', '#ff4444')
+      this.hudComboCount = 0
+    }
 
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
@@ -348,7 +383,7 @@ export class GameScene extends Phaser.Scene {
       const dist = Math.sqrt(dx * dx + dy * dy)
       if (dist <= range) {
         const isStealthKill = isStealth && enemy.state !== 'combat' && dist <= KHUKURI_STEALTH_RANGE
-        const died = enemy.takeDamage(scaledDmg, isStealthKill)
+        const died = enemy.takeDamage(scaledDmg, isStealthKill, x, y)
         if (died) this.scoreSystem.registerKill(isStealthKill || isStealth, comboFinish)
         const leveledUp = this.masterySystem.registerHit('khukuri')
         if (leveledUp) this.showMasteryLevelUp('khukuri', this.masterySystem.getLevel('khukuri'))
@@ -368,6 +403,136 @@ export class GameScene extends Phaser.Scene {
         if (died) this.scoreSystem.registerKill(false, comboFinish)
         const leveledUp = this.masterySystem.registerHit('khukuri')
         if (leveledUp) this.showMasteryLevelUp('khukuri', this.masterySystem.getLevel('khukuri'))
+        this.updateBossHUD()
+      }
+    }
+  }
+
+  private showComboText(wx: number, wy: number, text: string, color: string) {
+    const t = this.add.text(wx, wy - 20, text, {
+      fontSize: '9px', color, fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(20)
+    this.tweens.add({
+      targets: t, alpha: 0, y: wy - 45, duration: 700, ease: 'Quad.easeOut',
+      onComplete: () => t.destroy(),
+    })
+  }
+
+  private handleShieldBash(input: InputState) {
+    if (!input.shieldBash || this.era !== 1) return
+    if (!this.player.drainStamina(SHIELD_BASH_STAMINA)) return
+
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const angle = this.player.facingAngle
+    const bx = px + Math.cos(angle) * 28
+    const by = py + Math.sin(angle) * 28
+
+    // Shield flash VFX
+    const shield = this.add.graphics().setDepth(8)
+    shield.fillStyle(0xaaaaff, 0.65)
+    shield.fillCircle(bx, by, 22)
+    shield.lineStyle(2, 0x8888ff, 0.9)
+    shield.strokeCircle(bx, by, 22)
+    this.tweens.add({
+      targets: shield, alpha: 0, scaleX: 1.6, scaleY: 1.6,
+      duration: 220, ease: 'Quad.easeOut',
+      onComplete: () => shield.destroy(),
+    })
+
+    // Damage + stagger enemies in bash range
+    for (const enemy of this.enemies) {
+      if (enemy.isDead) continue
+      const dx = enemy.x - bx
+      const dy = enemy.y - by
+      if (Math.sqrt(dx * dx + dy * dy) <= 40) {
+        enemy.takeDamage(SHIELD_BASH_DAMAGE, false, px, py)
+        enemy.stagger(SHIELD_BASH_STAGGER)
+      }
+    }
+    this.cameras.main.shake(80, 0.005)
+  }
+
+  private handleGrenadeThrow(input: InputState) {
+    if (!input.grenade || this.era !== 3 || this.grenadeCount <= 0) return
+    this.grenadeCount--
+
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const angle = this.player.facingAngle
+    const speed = 280
+
+    const gfx = this.add.graphics().setDepth(7)
+    gfx.fillStyle(0x333333); gfx.fillCircle(0, 0, 5)
+    gfx.lineStyle(1, 0x666666); gfx.strokeCircle(0, 0, 5)
+    gfx.setPosition(px, py)
+
+    this.grenades.push({
+      gfx, x: px, y: py,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      fuse: GRENADE_FUSE,
+    })
+  }
+
+  private updateGrenades(delta: number) {
+    for (let i = this.grenades.length - 1; i >= 0; i--) {
+      const g = this.grenades[i]
+      g.fuse -= delta
+      const dt = delta / 1000
+      g.x += g.vx * dt
+      g.y += g.vy * dt
+      // Decelerate like a rolling grenade
+      g.vx *= Math.pow(0.96, delta / 16)
+      g.vy *= Math.pow(0.96, delta / 16)
+      g.gfx.setPosition(g.x, g.y)
+
+      // Blink faster as fuse runs low
+      if (g.fuse < 500) {
+        g.gfx.clear()
+        const blink = Math.floor(g.fuse / 80) % 2 === 0
+        g.gfx.fillStyle(blink ? 0xff4400 : 0x333333)
+        g.gfx.fillCircle(0, 0, 5)
+      }
+
+      if (g.fuse <= 0) {
+        this.detonateGrenade(g.x, g.y)
+        g.gfx.destroy()
+        this.grenades.splice(i, 1)
+      }
+    }
+  }
+
+  private detonateGrenade(x: number, y: number) {
+    // Explosion VFX
+    const expl = this.add.graphics().setDepth(9)
+    expl.fillStyle(0xff8800, 0.75); expl.fillCircle(x, y, GRENADE_RADIUS)
+    expl.fillStyle(0xffdd00, 0.6);  expl.fillCircle(x, y, GRENADE_RADIUS * 0.6)
+    expl.fillStyle(0xffffff, 0.9);  expl.fillCircle(x, y, GRENADE_RADIUS * 0.25)
+    this.tweens.add({
+      targets: expl, alpha: 0, scaleX: 1.9, scaleY: 1.9,
+      duration: 500, ease: 'Quad.easeOut',
+      onComplete: () => expl.destroy(),
+    })
+    this.cameras.main.shake(300, 0.018)
+
+    // Damage enemies in radius
+    for (const enemy of this.enemies) {
+      if (enemy.isDead) continue
+      const dist = Math.sqrt((enemy.x - x) ** 2 + (enemy.y - y) ** 2)
+      if (dist <= GRENADE_RADIUS) {
+        const died = enemy.takeDamage(GRENADE_DAMAGE, false, x, y)
+        if (died) this.scoreSystem.registerKill(false, false)
+        const leveledUp = this.masterySystem.registerHit('rifle')
+        if (leveledUp) this.showMasteryLevelUp('rifle', this.masterySystem.getLevel('rifle'))
+      }
+    }
+    if (this.boss && !this.boss.isDead) {
+      const dist = Math.sqrt((this.boss.x - x) ** 2 + (this.boss.y - y) ** 2)
+      if (dist <= GRENADE_RADIUS) {
+        const died = this.boss.takeDamage(GRENADE_DAMAGE)
+        if (died) this.scoreSystem.registerKill(false, false)
         this.updateBossHUD()
       }
     }
@@ -509,13 +674,14 @@ export class GameScene extends Phaser.Scene {
     })
 
     // Boss fires a spear projectile — spawn it as a Projectile
-    this.events.on('boss-fire', (evt: { x: number; y: number; dirX: number; dirY: number; damage: number }) => {
+    this.events.on('boss-fire', (evt: { x: number; y: number; dirX: number; dirY: number; damage: number; maxRange?: number }) => {
       const bossProj = new Projectile(this, {
-        type: 'musket',
+        type: this.era === 3 ? 'rifle' : 'musket',
         x: evt.x, y: evt.y,
         dirX: evt.dirX, dirY: evt.dirY,
         damage: evt.damage,
-        speed: 500, maxRange: 400,
+        speed: this.era === 3 ? 750 : 500,
+        maxRange: evt.maxRange ?? 400,
         isGunshot: false,
         owner: 'boss',
       })
@@ -682,10 +848,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   completeMission() {
-    // Persist mastery to localStorage before transitioning
     saveMastery(this.masterySystem.serialize())
 
     const allLore = this.scoreSystem.loreCount >= this.totalLore && this.totalLore > 0
+    const timeTaken = this.time.now - this.missionStartTime
     this.scene.start('MissionCompleteScene', {
       era: this.era, mission: this.mission, difficulty: this.difficulty,
       result: {
@@ -694,7 +860,8 @@ export class GameScene extends Phaser.Scene {
         stealthKills: this.scoreSystem.stealthKills,
         noHits: this.player.hp === PLAYER_MAX_HP,
         allLore,
-        underPar: false, timeTaken: 0,
+        underPar: timeTaken < PAR_TIME_MS,
+        timeTaken,
         masteryGained: this.masterySystem.getMasteryGained(),
       },
     })
@@ -761,10 +928,15 @@ export class GameScene extends Phaser.Scene {
       fontSize: '8px', color: '#f0c040',
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(11)
 
-    // ── ENEMY COUNT — top center ──────────────────────────────────────────────
-    this.enemyCountText = this.add.text(W / 2, 7, '', {
-      fontSize: '8px', color: '#ff6644', fontStyle: 'bold',
-      backgroundColor: '#00000077', padding: { x: 6, y: 2 },
+    // ── OBJECTIVE + ENEMY COUNT — top center ─────────────────────────────────
+    this.objectiveText = this.add.text(W / 2, 6, '', {
+      fontSize: '7px', color: '#ffdd88', fontStyle: 'bold',
+      backgroundColor: '#00000066', padding: { x: 6, y: 2 },
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(11)
+
+    this.enemyCountText = this.add.text(W / 2, 20, '', {
+      fontSize: '7px', color: '#ff8866',
+      backgroundColor: '#00000055', padding: { x: 4, y: 2 },
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(11)
 
     // ── WEAPON HUD — bottom center ────────────────────────────────────────────
@@ -827,21 +999,41 @@ export class GameScene extends Phaser.Scene {
     this.loreText.setText(`LORE: ${this.scoreSystem.loreCount}/${this.totalLore}`)
 
     const alive = this.enemies.filter(e => !e.isDead).length
-    this.enemyCountText.setText(alive > 0 ? `☠ ENEMIES: ${alive}` : '✓ ALL CLEAR')
+
+    // Objective label
+    if (this.missionComplete) {
+      this.objectiveText.setText('✓ MISSION COMPLETE!').setColor('#44ff88')
+    } else if (this.boss && !this.boss.isDead) {
+      this.objectiveText.setText(`⚔ DEFEAT: ${this.boss.name}`)
+    } else {
+      this.objectiveText.setText('☠ OBJECTIVE: ELIMINATE ALL ENEMIES')
+    }
+
+    // Enemy count
+    if (alive > 0) {
+      this.enemyCountText.setText(`${alive} remaining`).setVisible(true)
+    } else {
+      this.enemyCountText.setVisible(false)
+    }
 
     // Weapon HUD
     const wx = W / 2
     const wY = H - 34
     const hud = this.weaponSystem.hudInfo
     const dots = (level: number) => '●'.repeat(level) + '○'.repeat(5 - level)
+    let weaponLine = ''
     if (hud.heavyName) {
-      this.weaponText.setText(
-        `[X] ${hud.quickName}  ${hud.quickAmmo}  ${dots(hud.quickLevel)}\n` +
+      weaponLine = `[X] ${hud.quickName}  ${hud.quickAmmo}  ${dots(hud.quickLevel)}\n` +
         `[C] ${hud.heavyName}  ${hud.heavyAmmo}  ${dots(hud.heavyLevel)}`
-      )
     } else {
-      this.weaponText.setText(`[X] ${hud.quickName}   ${hud.quickAmmo}   ${dots(hud.quickLevel)}`)
+      weaponLine = `[X] ${hud.quickName}   ${hud.quickAmmo}   ${dots(hud.quickLevel)}`
     }
+    if (this.era === 1) {
+      weaponLine += `\n[C] Shield Bash  ${SHIELD_BASH_DAMAGE}dmg`
+    } else if (this.era === 3) {
+      weaponLine += `\n[V] Grenade  ×${this.grenadeCount}`
+    }
+    this.weaponText.setText(weaponLine)
     this.reloadBar.clear()
     this.reloadBar.fillStyle(0xffdd00)
     this.reloadBar.fillRoundedRect(wx - 50, wY + 18, 100 * hud.heavyReloadPct, 5, 2)

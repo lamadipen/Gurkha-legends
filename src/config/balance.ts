@@ -104,6 +104,9 @@ export const BOSS_EIC_BERSERK_SPEED    = 240
 export const BOSS_HELI_STRAFE_INTERVAL = 3000
 export const BOSS_HELI_STRAFE_DAMAGE   = 30
 
+// ─── Mission par time ─────────────────────────────────────────────────────────
+export const PAR_TIME_MS               = 180000  // 3 minutes
+
 // ─── Era 1 boss (Kazi Surendra Thapa) ─────────────────────────────────────────
 export const BOSS_ERA1_HP              = 300
 export const BOSS_ERA1_P1_SPEED        = 120
@@ -115,3 +118,26 @@ export const BOSS_ERA1_P3_DAMAGE       = 38
 export const BOSS_ERA1_SPEAR_DAMAGE    = 35
 export const BOSS_ERA1_CHARGE_DAMAGE   = 55
 export const BOSS_ERA1_MELEE_RANGE     = 65
+
+// ─── Era 2 boss (General Ochterlony) ──────────────────────────────────────────
+export const BOSS_ERA2_HP              = 350
+export const BOSS_ERA2_P1_SPEED        = 100
+export const BOSS_ERA2_P2_SPEED        = 150
+export const BOSS_ERA2_P3_SPEED        = 200
+export const BOSS_ERA2_P1_DAMAGE       = 18
+export const BOSS_ERA2_P2_DAMAGE       = 26
+export const BOSS_ERA2_P3_DAMAGE       = 36
+export const BOSS_ERA2_MUSKET_DAMAGE   = 30
+export const BOSS_ERA2_RANGED_COOLDOWN = 1800   // fires faster than Era 1
+export const BOSS_ERA2_REINFORCE_TIMER = 25000  // calls riflemen every 25s
+
+// ─── Era 3 boss (Commander Vargas) ────────────────────────────────────────────
+export const BOSS_ERA3_HP              = 250
+export const BOSS_ERA3_P1_SPEED        = 150
+export const BOSS_ERA3_P2_SPEED        = 200
+export const BOSS_ERA3_P3_SPEED        = 260
+export const BOSS_ERA3_P1_DAMAGE       = 22
+export const BOSS_ERA3_P2_DAMAGE       = 32
+export const BOSS_ERA3_P3_DAMAGE       = 44
+export const BOSS_ERA3_RIFLE_DAMAGE    = 25
+export const BOSS_ERA3_RIFLE_RANGE     = 800    // rifle shots travel further

@@ -232,6 +232,16 @@ export class MapBuilder {
         scene.add.rectangle(w.x + w.w / 2, w.y + w.h / 2, w.w, w.h, 0x000000, 0)
       )
     }
+    // Trees and rocks block movement — add invisible physics bodies
+    for (const d of decor) {
+      if (d.shape === 'tree') {
+        // Trunk footprint — small rect at base of canopy
+        wallGroup.add(scene.add.rectangle(d.x, d.y + 2, 8, 10, 0x000000, 0))
+      } else if (d.shape === 'rock') {
+        // Rock bounding oval approximated as a flattened rect
+        wallGroup.add(scene.add.rectangle(d.x, d.y, Math.round(d.r * 1.6), Math.round(d.r * 0.9), 0x000000, 0))
+      }
+    }
     wallGroup.refresh()
 
     // ── Objective marker ──────────────────────────────────────────────────────

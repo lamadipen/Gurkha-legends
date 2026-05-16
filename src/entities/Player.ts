@@ -67,6 +67,7 @@ export class Player {
   get hp() { return this._hp }
   get stamina() { return this.sta.value }
   get isDead() { return this._dead }
+  drainStamina(amount: number): boolean { return this.sta.drain(amount) }
   get detectionRadius() { return this.crouching ? PLAYER_STEALTH_RADIUS : PLAYER_NORMAL_RADIUS }
   get facingAngle(): number { return Math.atan2(this.facing.y, this.facing.x) }
 
