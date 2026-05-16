@@ -11,6 +11,7 @@ export interface InputState {
   heavyAttackHeld: boolean
   knife: boolean
   shieldBash: boolean
+  shieldHeld: boolean
   grenade: boolean
   interact: boolean
   pause: boolean
@@ -70,6 +71,7 @@ export class InputManager {
       heavyAttackHeld: this.keys.z.isDown,
       knife:           Phaser.Input.Keyboard.JustDown(this.keys.x),
       shieldBash:      Phaser.Input.Keyboard.JustDown(this.keys.c),
+      shieldHeld:      this.keys.c.isDown,
       grenade:         Phaser.Input.Keyboard.JustDown(this.keys.v),
       interact:        Phaser.Input.Keyboard.JustDown(this.keys.b),
       pause:           Phaser.Input.Keyboard.JustDown(this.keys.esc),

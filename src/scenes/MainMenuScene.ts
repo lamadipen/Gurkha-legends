@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { loadGame } from '../storage/api'
 import type { Difficulty } from '../types'
 
 export class MainMenuScene extends Phaser.Scene {
@@ -38,11 +39,33 @@ export class MainMenuScene extends Phaser.Scene {
     const btnStyle = { fontSize: '22px', color: '#ffffff', backgroundColor: '#333300',
       padding: { x: 24, y: 10 } }
 
-    this.addButton(cx, 350, 'PLAY', btnStyle, () => {
-      this.scene.start('EraSelectScene', { difficulty: this.difficulty })
-    })
+    const saved = loadGame(0)
+    let nextY = 340
 
-    this.addButton(cx, 420, 'LEADERBOARD', btnStyle, () => {
+    if (saved) {
+      this.addButton(cx, nextY, `CONTINUE  Era ${saved.currentEra}  ·  M${saved.currentMission}`, {
+        ...btnStyle, color: '#c8960c', fontSize: '20px',
+      }, () => {
+        this.scene.start('MissionBriefScene', {
+          era: saved.currentEra,
+          mission: saved.currentMission,
+          difficulty: saved.difficulty,
+        })
+      })
+      nextY += 68
+      this.addButton(cx, nextY, 'NEW GAME', {
+        ...btnStyle, fontSize: '16px', color: '#888888', backgroundColor: '#1a1a00',
+      }, () => {
+        this.scene.start('EraSelectScene', { difficulty: this.difficulty })
+      })
+    } else {
+      this.addButton(cx, nextY, 'PLAY', btnStyle, () => {
+        this.scene.start('EraSelectScene', { difficulty: this.difficulty })
+      })
+    }
+    nextY += 68
+
+    this.addButton(cx, nextY, 'LEADERBOARD', btnStyle, () => {
       this.scene.start('LeaderboardScene')
     })
 

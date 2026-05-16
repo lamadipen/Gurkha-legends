@@ -1,8 +1,8 @@
 import Phaser from 'phaser'
-import { saveGame, saveScore } from '../storage/api'
+import { saveGame, saveScore, loadMastery } from '../storage/api'
 import { DIFFICULTY_MULT_RECRUIT, DIFFICULTY_MULT_RIFLEMAN, DIFFICULTY_MULT_LEGEND,
   SCORE_BONUS_NO_DAMAGE, SCORE_BONUS_ALL_LORE, SCORE_BONUS_UNDER_PAR } from '../config/balance'
-import type { Difficulty, EraNumber, MissionNumber, MissionResult } from '../types'
+import type { Difficulty, EraNumber, MissionNumber, MissionResult, WeaponMastery } from '../types'
 
 export class MissionCompleteScene extends Phaser.Scene {
   private era: EraNumber = 1
@@ -111,6 +111,30 @@ export class MissionCompleteScene extends Phaser.Scene {
         fontStyle: isFinal ? 'bold' : 'normal',
       }).setOrigin(1, 0)
       rowY += isFinal ? 34 : 24
+    }
+
+    // ── Mastery gained ────────────────────────────────────────────────────────
+    const masteryEntries = Object.entries(r.masteryGained) as [keyof WeaponMastery, number][]
+    if (masteryEntries.length > 0) {
+      const savedMastery = loadMastery()
+      const sep2 = this.add.graphics()
+      sep2.lineStyle(1, 0x446622, 0.4)
+      sep2.lineBetween(cx - 170, rowY - 2, cx + 170, rowY - 2)
+      this.add.text(cx, rowY + 2, 'WEAPONS LEVELED', {
+        fontSize: '10px', color: '#888866',
+      }).setOrigin(0.5)
+      rowY += 20
+      for (const [weapon, delta] of masteryEntries) {
+        const label = weapon.charAt(0).toUpperCase() + weapon.slice(1)
+        const newLv = savedMastery ? savedMastery[weapon] : delta
+        this.add.text(cx - 170, rowY, `${label} Mastery`, {
+          fontSize: '13px', color: '#c8a84a',
+        })
+        this.add.text(cx + 170, rowY, `+${delta} → Lv.${newLv}`, {
+          fontSize: '13px', color: '#ffdd44', fontStyle: 'bold',
+        }).setOrigin(1, 0)
+        rowY += 20
+      }
     }
 
     // ── Name input ────────────────────────────────────────────────────────────

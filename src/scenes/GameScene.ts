@@ -23,7 +23,7 @@ import {
   KHUKURI_STEALTH_RANGE, SCORE_BONUS_ALL_LORE, SOUND_GUNSHOT_RADIUS,
   HEALTH_PICKUP_AMOUNT, HEALTH_PICKUP_RADIUS,
   GRENADE_DAMAGE, GRENADE_RADIUS, GRENADE_FUSE, GRENADE_PER_MISSION,
-  SHIELD_BASH_DAMAGE, SHIELD_BASH_STAGGER, SHIELD_BASH_STAMINA,
+  SHIELD_BASH_DAMAGE, SHIELD_BASH_STAGGER, SHIELD_BASH_STAMINA, SHIELD_BLOCK_PERCENT,
   PAR_TIME_MS,
 } from '../config/balance'
 
@@ -84,6 +84,7 @@ export class GameScene extends Phaser.Scene {
   private objectiveText!: Phaser.GameObjects.Text
   private hudComboCount = 0
   private missionStartTime = 0
+  private playerShielding = false
 
   constructor() { super('GameScene') }
 
@@ -94,6 +95,7 @@ export class GameScene extends Phaser.Scene {
     this.paused = false
     this.missionComplete = false
     this.rangedWeaponTimer = 0
+    this.playerShielding = false
     this.enemies = []
     this.loreItems = []
     this.healthPickups = []
@@ -175,6 +177,7 @@ export class GameScene extends Phaser.Scene {
     if (input.pause) this.togglePause()
     if (this.paused) return
 
+    this.playerShielding = input.shieldHeld && this.era === 1
     this.player.update(time, delta, input)
 
     for (const enemy of this.enemies) {
@@ -541,8 +544,28 @@ export class GameScene extends Phaser.Scene {
   private handleEnemyAttack(evt: EnemyAttackEvent) {
     const dist = Math.sqrt((evt.x - this.player.sprite.x) ** 2 + (evt.y - this.player.sprite.y) ** 2)
     if (dist <= 80 && this.hasLineOfSight(evt.x, evt.y, this.player.sprite.x, this.player.sprite.y)) {
-      this.player.takeDamage(evt.damage)
+      if (this.playerShielding) {
+        const absorbed = Math.floor(evt.damage * SHIELD_BLOCK_PERCENT / 100)
+        const remaining = evt.damage - absorbed
+        if (remaining > 0) this.player.takeDamage(remaining)
+        this.showBlockText()
+      } else {
+        this.player.takeDamage(evt.damage)
+      }
     }
+  }
+
+  private showBlockText() {
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const t = this.add.text(px, py - 28, 'BLOCKED!', {
+      fontSize: '9px', color: '#88aaff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(20)
+    this.tweens.add({
+      targets: t, alpha: 0, y: py - 50, duration: 600, ease: 'Quad.easeOut',
+      onComplete: () => t.destroy(),
+    })
   }
 
   // Called externally when a ranged weapon fires (gunshot alert radius)
@@ -696,6 +719,7 @@ export class GameScene extends Phaser.Scene {
       for (const off of offsets) {
         const e = new Enemy(this, this.boss.x + off.x, this.boss.y + off.y, 'soldier')
         this.physics.add.collider(e.sprite, this.wallGroup)
+        this.enemyGroup.add(e.sprite)
         this.enemies.push(e)
       }
       this.showPhaseNotification('REINFORCEMENTS!', '#ff6622')
@@ -770,7 +794,14 @@ export class GameScene extends Phaser.Scene {
         (proj.x - this.player.sprite.x) ** 2 + (proj.y - this.player.sprite.y) ** 2
       )
       if (dist < 16) {
-        this.player.takeDamage(proj.damage)
+        if (this.playerShielding) {
+          const absorbed = Math.floor(proj.damage * SHIELD_BLOCK_PERCENT / 100)
+          const remaining = proj.damage - absorbed
+          if (remaining > 0) this.player.takeDamage(remaining)
+          this.showBlockText()
+        } else {
+          this.player.takeDamage(proj.damage)
+        }
         proj.destroy()
       }
     }

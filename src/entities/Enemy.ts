@@ -295,13 +295,18 @@ export class Enemy {
     this.physBody.setEnable(false)
     this.indicator.destroy()
     this.scene.cameras.main.flash(60, 150, 0, 0, false)
-    // Fade to grey corpse over 1.5 seconds
+    // Fade to grey corpse over 1.5 seconds, then remove from scene after 4s linger
     this.sprite.setTint(0x555555)
     this.scene.tweens.add({
       targets: this.sprite,
       alpha: 0.25,
       duration: 1500,
       ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.scene.time.delayedCall(4000, () => {
+          if (this.sprite.active) this.sprite.destroy()
+        })
+      },
     })
   }
 
