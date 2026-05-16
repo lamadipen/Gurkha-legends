@@ -12,6 +12,8 @@ import { WeaponMasterySystem } from '../engine/WeaponMasterySystem'
 import { loadMastery, saveMastery } from '../storage/api'
 import { MapBuilder } from '../maps/MapBuilder'
 import { ERA1_MAPS } from '../maps/era1Maps'
+import { ERA2_MAPS } from '../maps/era2Maps'
+import { ERA3_MAPS } from '../maps/era3Maps'
 import type { MapDef } from '../maps/MapBuilder'
 import type { LoreDef } from '../entities/LoreItem'
 import type { Difficulty, EraNumber, MissionNumber } from '../types'
@@ -29,11 +31,10 @@ interface AttackEvent {
 
 interface EnemyAttackEvent { damage: number; x: number; y: number }
 
-// Map library — expand as Era 2/3 maps are built
 const MAP_LIBRARY: Record<number, Record<number, MapDef>> = {
   1: ERA1_MAPS,
-  2: ERA1_MAPS, // placeholder until Era 2 maps are built
-  3: ERA1_MAPS,
+  2: ERA2_MAPS,
+  3: ERA3_MAPS,
 }
 
 export class GameScene extends Phaser.Scene {
