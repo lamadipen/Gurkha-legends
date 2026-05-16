@@ -461,38 +461,32 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showHealNotification() {
-    const cx = this.scale.width / 2
-    const notif = this.add.text(cx, this.scale.height / 2 - 60, `+${HEALTH_PICKUP_AMOUNT} HP`, {
-      fontSize: '18px', color: '#44ff88', fontStyle: 'bold',
+    const cx = this.scale.width / 4   // centre of visible width
+    const cy = this.scale.height / 4  // centre of visible height
+    const notif = this.add.text(cx, cy - 30, `+${HEALTH_PICKUP_AMOUNT} HP`, {
+      fontSize: '9px', color: '#44ff88', fontStyle: 'bold',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(20)
     this.tweens.add({
-      targets: notif, alpha: 0, y: notif.y - 30,
+      targets: notif, alpha: 0, y: notif.y - 15,
       duration: 1200, ease: 'Quad.easeOut',
       onComplete: () => notif.destroy(),
     })
   }
 
   private showLoreNotification(title: string) {
-    const cx = this.scale.width / 2
-    const notif = this.add.text(cx, 60, `LORE FOUND\n${title}`, {
-      fontSize: '14px', color: '#f0c040', fontStyle: 'bold',
+    const cx = this.scale.width / 4
+    const notif = this.add.text(cx, 30, `LORE FOUND\n${title}`, {
+      fontSize: '7px', color: '#f0c040', fontStyle: 'bold',
       align: 'center', backgroundColor: '#00000088',
-      padding: { x: 14, y: 8 },
+      padding: { x: 7, y: 4 },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(20).setAlpha(0)
 
     this.tweens.add({
-      targets: notif,
-      alpha: 1,
-      y: 70,
-      duration: 300,
-      ease: 'Quad.easeOut',
+      targets: notif, alpha: 1, y: 36, duration: 300, ease: 'Quad.easeOut',
       onComplete: () => {
         this.time.delayedCall(1800, () => {
           this.tweens.add({
-            targets: notif,
-            alpha: 0,
-            y: 50,
-            duration: 400,
+            targets: notif, alpha: 0, y: 24, duration: 400,
             onComplete: () => notif.destroy(),
           })
         })
@@ -618,44 +612,34 @@ export class GameScene extends Phaser.Scene {
   private updateBossHUD() {
     if (!this.boss || !this.bossHpBar) return
     const pct = Math.max(0, this.boss.hp / this.boss.maxHp)
-    const barW = 400
-    const barX = this.scale.width / 2 - barW / 2
-    const barY = 14
+    const barW = 180
+    const barX = this.scale.width / 4 - barW / 2
+    const barY = 8
 
     this.bossHpBar.clear()
-
-    // HP fill — color by phase
     const phaseColors: Record<number, number> = { 1: 0x44bb44, 2: 0xdd8822, 3: 0xdd2222 }
     this.bossHpBar.fillStyle(phaseColors[this.boss.phase] ?? 0xdd2222)
-    this.bossHpBar.fillRect(barX, barY, barW * pct, 16)
-
-    // Phase divider lines
-    this.bossHpBar.fillStyle(0x000000, 0.6)
-    this.bossHpBar.fillRect(barX + barW * 0.75 - 1, barY, 2, 16)  // 75% = phase 2 threshold
-    this.bossHpBar.fillRect(barX + barW * 0.25 - 1, barY, 2, 16)  // 25% = phase 3 threshold
-
-    if (this.bossPhaseText) {
-      this.bossPhaseText.setText(`Phase ${this.boss.phase}`)
-    }
+    this.bossHpBar.fillRoundedRect(barX, barY, barW * pct, 12, 2)
+    this.bossHpBar.fillStyle(0x000000, 0.5)
+    this.bossHpBar.fillRect(barX + barW * 0.75 - 1, barY, 1, 12)
+    this.bossHpBar.fillRect(barX + barW * 0.25 - 1, barY, 1, 12)
+    if (this.bossPhaseText) this.bossPhaseText.setText(`Phase ${this.boss.phase}`)
   }
 
   private showPhaseNotification(text: string, color: string) {
-    const cx = this.scale.width / 2
-    const notif = this.add.text(cx, this.scale.height / 2 - 40, text, {
-      fontSize: '22px', color, fontStyle: 'bold',
-      backgroundColor: '#000000aa', padding: { x: 20, y: 10 },
+    const cx = this.scale.width / 4
+    const cy = this.scale.height / 4
+    const notif = this.add.text(cx, cy - 20, text, {
+      fontSize: '11px', color, fontStyle: 'bold',
+      backgroundColor: '#000000aa', padding: { x: 10, y: 5 },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(25).setAlpha(0)
 
     this.tweens.add({
-      targets: notif,
-      alpha: 1, y: this.scale.height / 2 - 55,
-      duration: 300, ease: 'Quad.easeOut',
+      targets: notif, alpha: 1, y: cy - 28, duration: 300, ease: 'Quad.easeOut',
       onComplete: () => {
         this.time.delayedCall(1800, () => {
           this.tweens.add({
-            targets: notif,
-            alpha: 0, y: this.scale.height / 2 - 70,
-            duration: 400,
+            targets: notif, alpha: 0, y: cy - 36, duration: 400,
             onComplete: () => notif.destroy(),
           })
         })
@@ -667,24 +651,19 @@ export class GameScene extends Phaser.Scene {
 
   private showMasteryLevelUp(weapon: string, level: number) {
     const label = weapon.charAt(0).toUpperCase() + weapon.slice(1)
-    const cx = this.scale.width / 2
-    const notif = this.add.text(cx, this.scale.height - 100,
-      `${label} Mastery  Lv.${level}!`, {
-        fontSize: '13px', color: '#ffdd00', fontStyle: 'bold',
-        backgroundColor: '#00000099', padding: { x: 12, y: 6 },
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(20).setAlpha(0)
+    const cx = this.scale.width / 4
+    const cy = this.scale.height / 4
+    const notif = this.add.text(cx, cy - 50, `${label} Mastery  Lv.${level}!`, {
+      fontSize: '7px', color: '#ffdd00', fontStyle: 'bold',
+      backgroundColor: '#00000099', padding: { x: 6, y: 3 },
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(20).setAlpha(0)
 
     this.tweens.add({
-      targets: notif,
-      alpha: 1, y: this.scale.height - 115,
-      duration: 250,
-      ease: 'Quad.easeOut',
+      targets: notif, alpha: 1, y: cy - 57, duration: 250, ease: 'Quad.easeOut',
       onComplete: () => {
         this.time.delayedCall(2000, () => {
           this.tweens.add({
-            targets: notif,
-            alpha: 0, y: this.scale.height - 130,
-            duration: 350,
+            targets: notif, alpha: 0, y: cy - 65, duration: 350,
             onComplete: () => notif.destroy(),
           })
         })
@@ -721,150 +700,174 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createHUD() {
-    const hudY = this.scale.height - 60
+    // zoom=2: all setScrollFactor(0) world coords get doubled on screen.
+    // Visible area = W×H = 480×270. Think: console/action game HUD.
+    const W = this.scale.width / 2   // 480
+    const H = this.scale.height / 2  // 270
 
+    // ── PLAYER STATUS — top-left, flush to corner ─────────────────────────────
+    // Solid dark panel with red left-border accent
+    const panel = this.add.graphics().setScrollFactor(0).setDepth(10)
+    panel.fillStyle(0x000000, 0.82)
+    panel.fillRect(0, 0, 168, 62)
+    panel.fillStyle(0xcc2222)                  // red left accent stripe
+    panel.fillRect(0, 0, 4, 62)
+
+    // HP row
+    this.add.text(10, 8, '❤', { fontSize: '11px', color: '#ff4444' })
+      .setScrollFactor(0).setDepth(11)
+    this.add.text(24, 9, 'HP', { fontSize: '9px', color: '#ff7777', fontStyle: 'bold' })
+      .setScrollFactor(0).setDepth(11)
     const hpBg = this.add.graphics().setScrollFactor(0).setDepth(10)
-    hpBg.fillStyle(0x220000)
-    hpBg.fillRect(20, hudY, 160, 14)
-    this.add.text(20, hudY - 18, 'HP', { fontSize: '12px', color: '#cc3333' }).setScrollFactor(0).setDepth(10)
+    hpBg.fillStyle(0x330000)
+    hpBg.fillRoundedRect(44, 8, 118, 16, 2)
     this.hpBar = this.add.graphics().setScrollFactor(0).setDepth(11)
-    this.hpText = this.add.text(100, hudY - 1, `${PLAYER_MAX_HP}/${PLAYER_MAX_HP}`, {
-      fontSize: '10px', color: '#ffffff',
+    this.hpText = this.add.text(103, 9, `${PLAYER_MAX_HP} / ${PLAYER_MAX_HP}`, {
+      fontSize: '8px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(12)
 
+    // Stamina row
+    this.add.text(10, 29, '⚡', { fontSize: '9px', color: '#44eeaa' })
+      .setScrollFactor(0).setDepth(11)
+    this.add.text(24, 30, 'STA', { fontSize: '8px', color: '#44dd88', fontStyle: 'bold' })
+      .setScrollFactor(0).setDepth(11)
     const staBg = this.add.graphics().setScrollFactor(0).setDepth(10)
-    staBg.fillStyle(0x002200)
-    staBg.fillRect(20, hudY + 20, 160, 10)
-    this.add.text(20, hudY + 2, 'STA', { fontSize: '10px', color: '#33cc33' }).setScrollFactor(0).setDepth(10)
+    staBg.fillStyle(0x003322)
+    staBg.fillRoundedRect(44, 30, 118, 10, 2)
     this.staminaBar = this.add.graphics().setScrollFactor(0).setDepth(11)
 
-    this.scoreText = this.add.text(this.scale.width - 20, hudY - 5, 'SCORE: 0', {
-      fontSize: '16px', color: '#c8960c', fontStyle: 'bold',
-    }).setOrigin(1, 0).setScrollFactor(0).setDepth(10)
+    // Mission label
+    this.add.text(8, 46, `Era ${this.era}  ·  Mission ${this.mission}`, {
+      fontSize: '7px', color: '#aa9966',
+    }).setScrollFactor(0).setDepth(11)
 
-    this.killText = this.add.text(this.scale.width - 20, hudY + 18, 'KILLS: 0', {
-      fontSize: '13px', color: '#888866',
-    }).setOrigin(1, 0).setScrollFactor(0).setDepth(10)
+    // ── SCORE / KILLS — top-right panel ──────────────────────────────────────
+    const rPanel = this.add.graphics().setScrollFactor(0).setDepth(10)
+    rPanel.fillStyle(0x000000, 0.75)
+    rPanel.fillRect(W - 112, 0, 112, 48)
+    rPanel.fillStyle(0xc8960c)
+    rPanel.fillRect(W - 4, 0, 4, 48)   // gold right accent stripe
 
-    this.enemyCountText = this.add.text(this.scale.width / 2, 20, '', {
-      fontSize: '13px', color: '#cc4444',
-    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(10)
+    this.scoreText = this.add.text(W - 10, 7, 'SCORE: 0', {
+      fontSize: '10px', color: '#f0b830', fontStyle: 'bold',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(11)
 
-    this.loreText = this.add.text(this.scale.width - 20, 20, 'LORE: 0/0', {
-      fontSize: '12px', color: '#f0c040',
-    }).setOrigin(1, 0).setScrollFactor(0).setDepth(10)
+    this.killText = this.add.text(W - 10, 23, 'KILLS: 0', {
+      fontSize: '8px', color: '#cccccc',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(11)
 
-    // Weapon HUD — bottom center
-    const wx = this.scale.width / 2
-    const wY = this.scale.height - 54
-    const weapBg = this.add.graphics().setScrollFactor(0).setDepth(10)
-    weapBg.fillStyle(0x000000, 0.5)
-    weapBg.fillRoundedRect(wx - 90, wY - 4, 180, 46, 6)
+    this.loreText = this.add.text(W - 10, 35, 'LORE: 0/0', {
+      fontSize: '8px', color: '#f0c040',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(11)
 
-    this.weaponText = this.add.text(wx, wY + 2, '', {
-      fontSize: '11px', color: '#ffffff', align: 'center',
+    // ── ENEMY COUNT — top center ──────────────────────────────────────────────
+    this.enemyCountText = this.add.text(W / 2, 7, '', {
+      fontSize: '8px', color: '#ff6644', fontStyle: 'bold',
+      backgroundColor: '#00000077', padding: { x: 6, y: 2 },
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(11)
 
-    // Reload bar background
+    // ── WEAPON HUD — bottom center ────────────────────────────────────────────
+    const wx = W / 2
+    const wY = H - 34
+    const weapBg = this.add.graphics().setScrollFactor(0).setDepth(10)
+    weapBg.fillStyle(0x000000, 0.78)
+    weapBg.fillRoundedRect(wx - 72, wY - 4, 144, 32, 4)
+    weapBg.lineStyle(1, 0x555533, 0.8)
+    weapBg.strokeRoundedRect(wx - 72, wY - 4, 144, 32, 4)
+    this.weaponText = this.add.text(wx, wY, '', {
+      fontSize: '7px', color: '#eeeecc', align: 'center',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(11)
     const relBg = this.add.graphics().setScrollFactor(0).setDepth(10)
-    relBg.fillStyle(0x333300)
-    relBg.fillRect(wx - 70, wY + 30, 140, 6)
+    relBg.fillStyle(0x222200)
+    relBg.fillRoundedRect(wx - 50, wY + 18, 100, 5, 2)
     this.reloadBar = this.add.graphics().setScrollFactor(0).setDepth(11)
 
-    this.add.text(20, 20, `Era ${this.era} · Mission ${this.mission}`, {
-      fontSize: '13px', color: '#887755',
-    }).setScrollFactor(0).setDepth(10)
-
-    // Boss HP bar — only when this map has a boss
+    // ── BOSS HP BAR — top center (only when map has a boss) ───────────────────
     if (this.boss) {
-      const barW = 400
-      const barX = this.scale.width / 2 - barW / 2
-
-      // Background track
+      const barW = 180
+      const barX = W / 2 - barW / 2
       const bossBg = this.add.graphics().setScrollFactor(0).setDepth(10)
-      bossBg.fillStyle(0x111111)
-      bossBg.fillRect(barX, 14, barW, 16)
-      bossBg.lineStyle(1, 0x666666, 0.6)
-      bossBg.strokeRect(barX, 14, barW, 16)
-
+      bossBg.fillStyle(0x000000, 0.8)
+      bossBg.fillRoundedRect(barX - 6, 4, barW + 12, 26, 3)
+      bossBg.fillStyle(0x220000)
+      bossBg.fillRoundedRect(barX, 8, barW, 12, 2)
       this.bossHpBar = this.add.graphics().setScrollFactor(0).setDepth(11)
-
-      this.bossNameText = this.add.text(this.scale.width / 2, 34, this.boss.name, {
-        fontSize: '11px', color: '#ffccaa', fontStyle: 'bold',
+      this.bossNameText = this.add.text(W / 2, 22, this.boss.name, {
+        fontSize: '7px', color: '#ffccaa', fontStyle: 'bold',
       }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(11)
-
-      this.bossPhaseText = this.add.text(barX + barW + 8, 16, 'Phase 1', {
-        fontSize: '10px', color: '#ff8844',
+      this.bossPhaseText = this.add.text(barX + barW + 8, 9, 'Phase 1', {
+        fontSize: '6px', color: '#ff9955',
       }).setScrollFactor(0).setDepth(11)
-
       this.updateBossHUD()
     }
   }
 
   private updateHUD() {
-    const hudY = this.scale.height - 60
+    const W = this.scale.width / 2
+    const H = this.scale.height / 2
 
-    const hpPct = this.player.hp / PLAYER_MAX_HP
-    const hpColor = hpPct > 0.6 ? 0x44cc44 : hpPct > 0.3 ? 0xddaa22 : 0xcc2222
+    // HP bar — top left
+    const hp = Math.round(this.player.hp)
+    const hpPct = hp / PLAYER_MAX_HP
+    const hpColor = hpPct > 0.6 ? 0x33cc55 : hpPct > 0.3 ? 0xddaa22 : 0xdd2222
     this.hpBar.clear()
     this.hpBar.fillStyle(hpColor)
-    this.hpBar.fillRect(20, hudY, 160 * hpPct, 14)
-    this.hpText.setText(`${this.player.hp}/${PLAYER_MAX_HP}`)
-    this.hpText.setColor(hpPct > 0.3 ? '#ffffff' : '#ffaaaa')
+    this.hpBar.fillRoundedRect(44, 8, 118 * hpPct, 16, 2)
+    this.hpText.setText(`${hp} / ${PLAYER_MAX_HP}`)
+    this.hpText.setColor(hpPct > 0.3 ? '#ffffff' : '#ffbbbb')
 
+    // Stamina bar
     this.staminaBar.clear()
-    this.staminaBar.fillStyle(0x33cc33)
-    this.staminaBar.fillRect(20, hudY + 20, 160 * (this.player.stamina / PLAYER_MAX_STAMINA), 10)
+    this.staminaBar.fillStyle(0x22cc77)
+    this.staminaBar.fillRoundedRect(44, 30, 118 * (this.player.stamina / PLAYER_MAX_STAMINA), 10, 2)
 
     this.scoreText.setText(`SCORE: ${this.scoreSystem.score.toLocaleString()}`)
     this.killText.setText(`KILLS: ${this.scoreSystem.kills}`)
-
-    const alive = this.enemies.filter(e => !e.isDead).length
-    this.enemyCountText.setText(alive > 0 ? `ENEMIES: ${alive}` : '— ALL CLEAR —')
-
     this.loreText.setText(`LORE: ${this.scoreSystem.loreCount}/${this.totalLore}`)
 
-    // Weapon HUD
-    const wx = this.scale.width / 2
-    const wY = this.scale.height - 54
-    const hud = this.weaponSystem.hudInfo
-    const dots = (level: number) => '■'.repeat(level) + '□'.repeat(5 - level)
+    const alive = this.enemies.filter(e => !e.isDead).length
+    this.enemyCountText.setText(alive > 0 ? `☠ ENEMIES: ${alive}` : '✓ ALL CLEAR')
 
+    // Weapon HUD
+    const wx = W / 2
+    const wY = H - 34
+    const hud = this.weaponSystem.hudInfo
+    const dots = (level: number) => '●'.repeat(level) + '○'.repeat(5 - level)
     if (hud.heavyName) {
       this.weaponText.setText(
-        `[X] ${hud.quickName} ${hud.quickAmmo} ${dots(hud.quickLevel)}` +
-        `   [C] ${hud.heavyName} ${hud.heavyAmmo} ${dots(hud.heavyLevel)}`
+        `[X] ${hud.quickName}  ${hud.quickAmmo}  ${dots(hud.quickLevel)}\n` +
+        `[C] ${hud.heavyName}  ${hud.heavyAmmo}  ${dots(hud.heavyLevel)}`
       )
     } else {
-      this.weaponText.setText(`[X] ${hud.quickName}  ${hud.quickAmmo}  ${dots(hud.quickLevel)}`)
+      this.weaponText.setText(`[X] ${hud.quickName}   ${hud.quickAmmo}   ${dots(hud.quickLevel)}`)
     }
-
     this.reloadBar.clear()
     this.reloadBar.fillStyle(0xffdd00)
-    this.reloadBar.fillRect(wx - 70, wY + 30, 140 * hud.heavyReloadPct, 6)
+    this.reloadBar.fillRoundedRect(wx - 50, wY + 18, 100 * hud.heavyReloadPct, 5, 2)
 
     if (this.boss) this.updateBossHUD()
   }
 
   private createPauseOverlay() {
-    const { width, height } = this.scale
-    const cx = width / 2
+    const W = this.scale.width / 2    // 480
+    const H = this.scale.height / 2   // 270
+    const cx = W / 2
 
     const overlay = this.add.graphics().setScrollFactor(0).setDepth(50)
     overlay.fillStyle(0x000000, 0.7)
-    overlay.fillRect(0, 0, width, height)
+    overlay.fillRect(0, 0, W, H)
 
-    const title = this.add.text(cx, height / 2 - 80, 'PAUSED', {
-      fontSize: '48px', color: '#c8960c', fontStyle: 'bold',
+    const title = this.add.text(cx, H / 2 - 40, 'PAUSED', {
+      fontSize: '24px', color: '#c8960c', fontStyle: 'bold',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(51)
 
-    const resume = this.add.text(cx, height / 2, 'RESUME', {
-      fontSize: '24px', color: '#ffffff', backgroundColor: '#333300', padding: { x: 20, y: 10 },
+    const resume = this.add.text(cx, H / 2, 'RESUME', {
+      fontSize: '12px', color: '#ffffff', backgroundColor: '#333300', padding: { x: 10, y: 5 },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(51).setInteractive({ useHandCursor: true })
     resume.on('pointerup', () => this.togglePause())
 
-    const quit = this.add.text(cx, height / 2 + 70, 'QUIT TO MENU', {
-      fontSize: '20px', color: '#888866',
+    const quit = this.add.text(cx, H / 2 + 35, 'QUIT TO MENU', {
+      fontSize: '10px', color: '#888866',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(51).setInteractive({ useHandCursor: true })
     quit.on('pointerup', () => this.scene.start('MainMenuScene'))
 
